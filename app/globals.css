@@ -42,6 +42,8 @@
   --neutral-pill-text: #f4d2de;
   --progress-bg: #5a1026;
   --panel-link-bg: #3f0a1b;
+  --calendar-activity-bg: #ffd8e4;
+  --calendar-activity-text: #650d28;
   --shadow: 0 18px 46px rgba(8, 1, 4, 0.28);
   --theme-toggle-bg: rgba(255, 255, 255, 0.12);
   --nav-hover-bg: rgba(255, 255, 255, 0.11);
@@ -92,6 +94,8 @@
   --neutral-pill-text: #f4d2de;
   --progress-bg: #5a1026;
   --panel-link-bg: #3f0a1b;
+  --calendar-activity-bg: #ffd8e4;
+  --calendar-activity-text: #650d28;
   --shadow: 0 18px 46px rgba(8, 1, 4, 0.28);
   --theme-toggle-bg: rgba(255, 255, 255, 0.12);
   --nav-hover-bg: rgba(255, 255, 255, 0.11);
@@ -142,6 +146,8 @@
   --neutral-pill-text: #5c2437;
   --progress-bg: #efd8e1;
   --panel-link-bg: #fff7fa;
+  --calendar-activity-bg: #ffd1df;
+  --calendar-activity-text: #5f0f2b;
   --shadow: 0 16px 38px rgba(159, 18, 57, 0.08);
   --theme-toggle-bg: rgba(255, 255, 255, 0.16);
   --nav-hover-bg: rgba(255, 255, 255, 0.14);
@@ -668,10 +674,14 @@ tr:last-child td {
 
 .maintenance-form textarea,
 .task-form textarea {
+  display: block;
   line-height: 1.45;
   min-height: 110px;
   padding: 12px;
   resize: vertical;
+  text-align: left;
+  vertical-align: top;
+  width: 100%;
 }
 
 .dashboard-project-filter select:focus,
@@ -1290,11 +1300,14 @@ tr:last-child td {
 }
 
 .calendar-day {
+  align-content: start;
   background: var(--surface);
   border: 0;
   border-bottom: 1px solid var(--line);
   border-right: 1px solid var(--line);
   color: var(--text);
+  display: grid;
+  justify-items: start;
   min-height: 118px;
   padding: 9px;
   text-align: left;
@@ -1337,10 +1350,10 @@ tr:last-child td {
 
 .calendar-activity-item,
 .calendar-activity-more {
-  align-items: center;
-  background: var(--accent-soft);
+  align-items: flex-start;
+  background: var(--calendar-activity-bg);
   border-radius: 6px;
-  color: var(--brand-strong);
+  color: var(--calendar-activity-text);
   display: flex;
   font-size: 0.76rem;
   font-weight: 800;
@@ -1349,10 +1362,16 @@ tr:last-child td {
   padding: 5px 6px;
 }
 
+.calendar-activity-item svg {
+  color: var(--calendar-activity-text);
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
 .calendar-activity-item span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  text-align: left;
+  white-space: pre-wrap;
 }
 
 .selected-date-panel {
@@ -1400,7 +1419,15 @@ tr:last-child td {
 }
 
 .task-card p {
+  line-height: 1.45;
   margin-bottom: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.dashboard-task-calendar-detail-table td {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .task-card-actions {

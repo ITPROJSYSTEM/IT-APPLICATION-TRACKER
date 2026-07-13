@@ -153,9 +153,7 @@ export default function TaskCalendarActivitiesPage() {
   function saveTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const details = taskDetails.trim();
-
-    if (!details) {
+    if (!taskDetails.trim()) {
       return;
     }
 
@@ -166,7 +164,7 @@ export default function TaskCalendarActivitiesPage() {
             ? {
                 ...activity,
                 date: selectedDateKey,
-                details
+                details: taskDetails
               }
             : activity
         )
@@ -181,7 +179,7 @@ export default function TaskCalendarActivitiesPage() {
       {
         id: `${selectedDateKey}-${Date.now()}`,
         date: selectedDateKey,
-        details
+        details: taskDetails
       }
     ]);
     setTaskDetails("");
