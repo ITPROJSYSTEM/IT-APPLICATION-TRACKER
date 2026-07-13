@@ -29,13 +29,6 @@ type TaskActivity = {
 type MetricTone = "blue" | "orange" | "purple" | "green";
 type DetailSource = "project-modification" | "test-cases" | "task-calendar";
 
-type StatusDetail = {
-  source: DetailSource;
-  title: string;
-  label: string;
-  statuses: TestStatus[];
-};
-
 type MetricDetail = {
   id: string;
   source: DetailSource;
@@ -265,6 +258,7 @@ function renderAttachment(attachment: TestCase["attachment"], onOpen: (attachmen
   if (isImageAttachment(attachment)) {
     return (
       <button className="dashboard-attachment-preview" type="button" onClick={() => onOpen(attachment)}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={attachment.dataUrl} alt={attachment.name} />
         <span>{attachment.name}</span>
       </button>
@@ -643,7 +637,7 @@ export default function DashboardPage() {
             <h1>
               Welcome back, <span>{currentUser}</span>
             </h1>
-            <p>Here's what's happening with your projects today.</p>
+            <p>Here is what is happening with your projects today.</p>
           </div>
         </div>
         <div className="dashboard-clock" aria-label="Current date and time">
@@ -905,6 +899,7 @@ export default function DashboardPage() {
           </div>
           <div className="attachment-preview-body dashboard-attachment-preview-body">
             {isImageAttachment(previewAttachment) ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
               <img src={previewAttachment.dataUrl} alt={previewAttachment.name} />
             ) : (
               <iframe className="dashboard-attachment-frame" src={previewAttachment.dataUrl} title={previewAttachment.name} />

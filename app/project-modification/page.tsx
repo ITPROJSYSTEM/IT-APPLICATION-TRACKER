@@ -758,6 +758,7 @@ export default function ProjectModificationPage() {
               </button>
             </div>
             <div className="attachment-preview-body">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={previewAttachment.dataUrl} alt={previewAttachment.name} />
             </div>
           </section>
