@@ -1,0 +1,10 @@
+
+> it-application-tracker@1.0.0 dev
+> next dev -p 3000
+
+   ▲ Next.js 15.5.20
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.18.97:3000
+
+ ✓ Starting...
+ ✓ Ready in 1966ms

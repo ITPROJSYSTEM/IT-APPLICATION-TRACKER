@@ -1,0 +1,77 @@
+   ▲ Next.js 15.5.20
+   - Local:        http://127.0.0.1:3001
+   - Network:      http://127.0.0.1:3001
+
+ ✓ Starting...
+ ✓ Ready in 1950ms
+ ○ Compiling /test-cases ...
+ ✓ Compiled /test-cases in 1734ms (662 modules)
+ HEAD /dashboard 200 in 2808ms
+ HEAD /test-cases 200 in 2434ms
+ GET /dashboard 200 in 134ms
+ ○ Compiling /task-calendar-activities ...
+ ✓ Compiled /task-calendar-activities in 521ms (665 modules)
+ GET /task-calendar-activities 200 in 965ms
+ GET /dashboard 200 in 38ms
+ ✓ Compiled in 854ms (667 modules)
+ GET /dashboard 200 in 139ms
+ GET /dashboard 200 in 36ms
+ ✓ Compiled in 288ms (667 modules)
+ GET /dashboard 200 in 57ms
+ GET /dashboard 200 in 33ms
+ HEAD /dashboard 200 in 228ms
+ GET /dashboard 200 in 137ms
+ ✓ Compiled /project-modification in 308ms (669 modules)
+ GET /project-modification 200 in 373ms
+ ✓ Compiled /task-calendar-activities in 139ms (410 modules)
+ GET /task-calendar-activities 200 in 213ms
+ GET /dashboard 200 in 98ms
+ GET /task-calendar-activities 200 in 42ms
+ GET /project-modification 200 in 31ms
+ ✓ Compiled /test-cases in 297ms (415 modules)
+ GET /test-cases 200 in 397ms
+ GET /dashboard 200 in 121ms
+ GET /test-cases 200 in 43ms
+ ○ Compiling /projects ...
+ ✓ Compiled /projects in 525ms (691 modules)
+ GET /projects 200 in 602ms
+ GET /dashboard 200 in 27ms
+ GET /projects 200 in 43ms
+ GET /dashboard 200 in 41ms
+ GET /task-calendar-activities 200 in 46ms
+ ✓ Compiled in 496ms (705 modules)
+ GET /dashboard 200 in 357ms
+ GET /dashboard 200 in 45ms
+ GET /dashboard 200 in 41ms
+ GET /task-calendar-activities 200 in 51ms
+ GET /task-calendar-activities 200 in 30ms
+ GET /dashboard 200 in 28ms
+ ✓ Compiled in 371ms (692 modules)
+ GET /dashboard 200 in 70ms
+ GET /dashboard 200 in 36ms
+ ✓ Compiled in 315ms (692 modules)
+ GET /dashboard 200 in 54ms
+ GET /dashboard 200 in 32ms
+ ✓ Compiled in 298ms (692 modules)
+ GET /dashboard 200 in 79ms
+ GET /dashboard 200 in 35ms
+ ✓ Compiled in 324ms (692 modules)
+ GET /dashboard 200 in 68ms
+ GET /dashboard 200 in 23ms
+ HEAD /dashboard 200 in 223ms
+ GET /task-calendar-activities 200 in 31ms
+ GET /dashboard 200 in 22ms
+ GET /task-calendar-activities 200 in 30ms
+ GET /dashboard 200 in 27ms
+ ○ Compiling /test-cases ...
+ ✓ Compiled /test-cases in 518ms (416 modules)
+ ✓ Compiled (421 modules)
+ GET /test-cases 200 in 587ms
+ GET /project-modification 200 in 939ms
+ GET /dashboard 200 in 157ms
+ GET /dashboard 200 in 34ms
+ GET /test-cases 200 in 25ms
+ GET /dashboard 200 in 54ms
+ GET /task-calendar-activities 200 in 37ms
+ GET /project-modification 200 in 31ms
+ GET /dashboard 200 in 30ms
