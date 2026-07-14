@@ -11,6 +11,23 @@ type AppDataRow = {
   updated_at?: string;
 };
 
+type LocalRecordSnapshot<TRecord> = {
+  exists: boolean;
+  isLegacy: boolean;
+  records: TRecord[];
+  updatedAt: string | null;
+};
+
+type StoredRecordsEnvelope = {
+  records?: unknown;
+  updatedAt?: unknown;
+};
+
+type LoadedRecords<TRecord> = {
+  records: TRecord[];
+  shouldSkipSave: boolean;
+};
+
 function parseRecords<TRecord>(
   value: unknown,
   validator: (value: unknown) => value is TRecord,
@@ -24,28 +41,81 @@ function parseRecords<TRecord>(
   return records.length > 0 || value.length === 0 ? records : fallback;
 }
 
-function readLocalRecords<TRecord>(
+function recordsMatch<TRecord>(firstRecords: TRecord[], secondRecords: TRecord[]) {
+  return JSON.stringify(firstRecords) === JSON.stringify(secondRecords);
+}
+
+function parseLocalSnapshot<TRecord>(
+  parsedRecords: unknown,
+  validator: (value: unknown) => value is TRecord,
+  fallback: TRecord[]
+): LocalRecordSnapshot<TRecord> {
+  if (Array.isArray(parsedRecords)) {
+    return {
+      exists: true,
+      isLegacy: true,
+      records: parseRecords(parsedRecords, validator, fallback),
+      updatedAt: null
+    };
+  }
+
+  if (parsedRecords && typeof parsedRecords === "object") {
+    const envelope = parsedRecords as StoredRecordsEnvelope;
+
+    if (Array.isArray(envelope.records)) {
+      return {
+        exists: true,
+        isLegacy: false,
+        records: parseRecords(envelope.records, validator, fallback),
+        updatedAt: typeof envelope.updatedAt === "string" ? envelope.updatedAt : null
+      };
+    }
+  }
+
+  return {
+    exists: false,
+    isLegacy: false,
+    records: fallback,
+    updatedAt: null
+  };
+}
+
+function readLocalSnapshot<TRecord>(
   storageKey: string,
   validator: (value: unknown) => value is TRecord,
   fallback: TRecord[]
-) {
+): LocalRecordSnapshot<TRecord> {
   const savedRecords = localStorage.getItem(storageKey);
 
   if (!savedRecords) {
-    return fallback;
+    return {
+      exists: false,
+      isLegacy: false,
+      records: fallback,
+      updatedAt: null
+    };
   }
 
   try {
     const parsedRecords: unknown = JSON.parse(savedRecords);
-    return parseRecords(parsedRecords, validator, fallback);
+    return parseLocalSnapshot(parsedRecords, validator, fallback);
   } catch {
     localStorage.removeItem(storageKey);
-    return fallback;
+    return {
+      exists: false,
+      isLegacy: false,
+      records: fallback,
+      updatedAt: null
+    };
   }
 }
 
-async function saveSharedRecords<TRecord>(storageKey: string, records: TRecord[]) {
-  localStorage.setItem(storageKey, JSON.stringify(records));
+function writeLocalSnapshot<TRecord>(storageKey: string, records: TRecord[], updatedAt: string) {
+  localStorage.setItem(storageKey, JSON.stringify({ records, updatedAt }));
+}
+
+async function saveSharedRecords<TRecord>(storageKey: string, records: TRecord[], updatedAt = new Date().toISOString()) {
+  writeLocalSnapshot(storageKey, records, updatedAt);
 
   if (!supabase) {
     return;
@@ -56,7 +126,7 @@ async function saveSharedRecords<TRecord>(storageKey: string, records: TRecord[]
     .upsert({
       data_key: storageKey,
       data: records,
-      updated_at: new Date().toISOString()
+      updated_at: updatedAt
     });
 
   if (error) {
@@ -68,32 +138,52 @@ async function loadSharedRecords<TRecord>(
   storageKey: string,
   validator: (value: unknown) => value is TRecord,
   fallback: TRecord[]
-) {
-  const localRecords = readLocalRecords(storageKey, validator, fallback);
+): Promise<LoadedRecords<TRecord>> {
+  const localSnapshot = readLocalSnapshot(storageKey, validator, fallback);
 
   if (!supabase) {
-    return localRecords;
+    return { records: localSnapshot.records, shouldSkipSave: true };
   }
 
   const { data, error } = await supabase
     .from(sharedDataTable)
-    .select("data")
+    .select("data, updated_at")
     .eq("data_key", storageKey)
     .maybeSingle<AppDataRow>();
 
   if (error) {
     console.warn(`Unable to load ${storageKey} from Supabase.`, error.message);
-    return localRecords;
+    return { records: localSnapshot.records, shouldSkipSave: true };
   }
 
   if (!data) {
-    await saveSharedRecords(storageKey, localRecords);
-    return localRecords;
+    if (localSnapshot.exists) {
+      await saveSharedRecords(storageKey, localSnapshot.records, localSnapshot.updatedAt ?? undefined);
+      return { records: localSnapshot.records, shouldSkipSave: true };
+    }
+
+    return { records: fallback, shouldSkipSave: true };
   }
 
-  const sharedRecords = parseRecords(data.data, validator, localRecords);
-  localStorage.setItem(storageKey, JSON.stringify(sharedRecords));
-  return sharedRecords;
+  const sharedRecords = parseRecords(data.data, validator, localSnapshot.records);
+  const remoteUpdatedAt = data.updated_at ?? null;
+  const localHasDifferentRecords = localSnapshot.exists && !recordsMatch(localSnapshot.records, sharedRecords);
+  const localIsNewer =
+    localSnapshot.updatedAt && remoteUpdatedAt
+      ? new Date(localSnapshot.updatedAt).getTime() > new Date(remoteUpdatedAt).getTime()
+      : false;
+  const localLooksUserEdited =
+    localSnapshot.isLegacy &&
+    localHasDifferentRecords &&
+    !recordsMatch(localSnapshot.records, fallback);
+
+  if (localHasDifferentRecords && (localIsNewer || localLooksUserEdited)) {
+    await saveSharedRecords(storageKey, localSnapshot.records, localSnapshot.updatedAt ?? undefined);
+    return { records: localSnapshot.records, shouldSkipSave: true };
+  }
+
+  writeLocalSnapshot(storageKey, sharedRecords, remoteUpdatedAt ?? new Date().toISOString());
+  return { records: sharedRecords, shouldSkipSave: true };
 }
 
 type SyncedRecordsResult<TRecord> = {
@@ -121,8 +211,8 @@ export function useSyncedRecords<TRecord>(
         return;
       }
 
-      skipNextRemoteSave.current = true;
-      setRecords(nextRecords);
+      skipNextRemoteSave.current = nextRecords.shouldSkipSave;
+      setRecords(nextRecords.records);
       setIsReady(true);
     }
 
@@ -152,14 +242,14 @@ export function useSyncedRecords<TRecord>(
           if (!nextRow) {
             skipNextRemoteSave.current = true;
             setRecords([]);
-            localStorage.setItem(storageKey, JSON.stringify([]));
+            writeLocalSnapshot(storageKey, [], new Date().toISOString());
             return;
           }
 
           const nextRecords = parseRecords(nextRow.data, validator, fallback);
           skipNextRemoteSave.current = true;
           setRecords(nextRecords);
-          localStorage.setItem(storageKey, JSON.stringify(nextRecords));
+          writeLocalSnapshot(storageKey, nextRecords, nextRow.updated_at ?? new Date().toISOString());
         }
       )
       .subscribe();
@@ -177,7 +267,6 @@ export function useSyncedRecords<TRecord>(
 
     if (skipNextRemoteSave.current) {
       skipNextRemoteSave.current = false;
-      localStorage.setItem(storageKey, JSON.stringify(records));
       return;
     }
 

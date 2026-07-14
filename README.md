@@ -38,6 +38,10 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-sb-publishable-key
 
 The login page uses Supabase Auth with email and password.
 
+If other browsers or incognito windows only show demo data, the app is not reaching the shared `app_data` table.
+Run `supabase/schema.sql` in the Supabase SQL editor for the project in `.env.local`, then restart the app and open
+your already-updated browser once so its local records can upload to Supabase.
+
 To show each user's profile details, add these values to the Supabase Auth user's metadata:
 
 ```json
