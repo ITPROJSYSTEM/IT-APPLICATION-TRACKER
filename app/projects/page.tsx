@@ -5,6 +5,7 @@ import { AppShell } from "@/components/app-shell";
 import { StatusPill } from "@/components/status-pill";
 import { projects } from "@/lib/data";
 import { exportRowsToExcel } from "@/lib/export-excel";
+import { sortRecordsById } from "@/lib/record-sort";
 import { useSyncedRecords } from "@/lib/shared-records";
 import type { ProjectStatus } from "@/lib/types";
 import { Edit3, FileSpreadsheet, Plus, Save, Trash2, X } from "lucide-react";
@@ -79,7 +80,7 @@ export default function ProjectsPage() {
   const filteredProjects = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
 
-    return records.filter((project) => {
+    const matchingProjects = records.filter((project) => {
       const matchesStatus = statusFilter === "All" || project.status === statusFilter;
       const searchableValue = [
         project.id,
@@ -94,6 +95,8 @@ export default function ProjectsPage() {
 
       return matchesStatus && (!normalizedSearch || searchableValue.includes(normalizedSearch));
     });
+
+    return sortRecordsById(matchingProjects);
   }, [records, searchTerm, statusFilter]);
 
   const displayedProjectId = editingId ? formData.id : generateProjectId(records);
@@ -152,7 +155,7 @@ export default function ProjectsPage() {
       setRecords((current) => current.map((project) => (project.id === editingId ? nextProject : project)));
       setMessage(`${nextProject.id} updated.`);
     } else {
-      setRecords((current) => [nextProject, ...current]);
+      setRecords((current) => sortRecordsById([...current, nextProject]));
       setMessage(`${nextProject.id} added.`);
     }
 

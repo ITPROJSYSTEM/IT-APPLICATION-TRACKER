@@ -26,7 +26,6 @@ const knownTestStatuses: TestStatus[] = [
   "In Progress",
   "For Review"
 ];
-const defaultProjectOptions = projects.map((project) => project.name);
 const projectStorageKey = "it-application-tracker-projects";
 const testCaseStorageKey = "it-application-tracker-project-modification-records";
 const maxImageDimension = 1400;
@@ -266,7 +265,7 @@ export default function ProjectModificationPage() {
     initialProjectModificationRecords,
     isStoredTestCase
   );
-  const { records: projectOptionRecords } = useSyncedRecords(
+  const { records: projectOptionRecords, isReady: areProjectsReady } = useSyncedRecords(
     projectStorageKey,
     projects,
     isProjectOptionRecord
@@ -283,11 +282,23 @@ export default function ProjectModificationPage() {
   const detailsFieldRef = useRef<HTMLTextAreaElement>(null);
   const devRemarksFieldRef = useRef<HTMLTextAreaElement>(null);
 
-  const displayedTestCaseId = editingId ? formData.id : generateTestCaseId(records, formData.project);
   const projectOptions = useMemo(() => {
+    if (!areProjectsReady) {
+      return [];
+    }
+
     const projectNames = projectOptionRecords.map((project) => project.name.trim()).filter(Boolean);
-    return projectNames.length > 0 ? Array.from(new Set(projectNames)) : defaultProjectOptions;
-  }, [projectOptionRecords]);
+    return Array.from(new Set(projectNames));
+  }, [areProjectsReady, projectOptionRecords]);
+  const activeProjectNames = useMemo(() => new Set(projectOptions), [projectOptions]);
+  const activeRecords = useMemo(() => {
+    if (!areProjectsReady) {
+      return [];
+    }
+
+    return records.filter((testCase) => activeProjectNames.has(testCase.project));
+  }, [activeProjectNames, areProjectsReady, records]);
+  const displayedTestCaseId = editingId ? formData.id : generateTestCaseId(activeRecords, formData.project);
 
   function getFilteredProjectTestCase() {
     return {
@@ -304,10 +315,28 @@ export default function ProjectModificationPage() {
     setFormData((current) => (current.tester ? current : { ...current, tester: loggedInAccount }));
   }, []);
 
+  useEffect(() => {
+    if (!areProjectsReady || !isStorageReady) {
+      return;
+    }
+
+    const nextRecords = records.filter((testCase) => activeProjectNames.has(testCase.project));
+
+    if (nextRecords.length !== records.length) {
+      setRecords(nextRecords);
+    }
+  }, [activeProjectNames, areProjectsReady, isStorageReady, records, setRecords]);
+
+  useEffect(() => {
+    if (projectFilter !== "All" && !activeProjectNames.has(projectFilter)) {
+      setProjectFilter("All");
+    }
+  }, [activeProjectNames, projectFilter]);
+
   const filteredTestCases = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
 
-    const matchingRecords = records.filter((testCase) => {
+    const matchingRecords = activeRecords.filter((testCase) => {
       const matchesProject = projectFilter === "All" || testCase.project === projectFilter;
       const matchesStatus = statusFilter === "All" || testCase.status === statusFilter;
       const searchableValue = [
@@ -327,7 +356,7 @@ export default function ProjectModificationPage() {
     });
 
     return sortRecordsById(matchingRecords);
-  }, [records, projectFilter, searchTerm, statusFilter]);
+  }, [activeRecords, projectFilter, searchTerm, statusFilter]);
 
   function updateField<Field extends keyof TestCase>(field: Field, value: TestCase[Field]) {
     setFormData((current) => ({ ...current, [field]: value }));
@@ -414,7 +443,7 @@ export default function ProjectModificationPage() {
     event.preventDefault();
 
     const nextTestCase: TestCase = {
-      id: editingId ? formData.id : generateTestCaseId(records, formData.project.trim()),
+      id: editingId ? formData.id : generateTestCaseId(activeRecords, formData.project.trim()),
       project: formData.project.trim(),
       module: formData.module,
       tester: currentTester || formData.tester.trim(),
@@ -435,11 +464,16 @@ export default function ProjectModificationPage() {
       return;
     }
 
+    if (!activeProjectNames.has(nextTestCase.project)) {
+      setMessage("Select an active project from Project Maintenance before saving.");
+      return;
+    }
+
     if (editingId) {
       setRecords((current) => current.map((testCase) => (testCase.id === editingId ? nextTestCase : testCase)));
       setMessage(`${nextTestCase.id} updated.`);
     } else {
-      setRecords((current) => [nextTestCase, ...current]);
+      setRecords((current) => sortRecordsById([...current, nextTestCase]));
       setMessage(`${nextTestCase.id} added.`);
     }
 

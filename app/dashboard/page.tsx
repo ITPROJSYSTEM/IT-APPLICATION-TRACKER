@@ -281,7 +281,7 @@ export default function DashboardPage() {
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const [currentUser, setCurrentUser] = useState(demoUserProfile);
   const [selectedProject, setSelectedProject] = useState("All Projects");
-  const { records: projectRecords } = useSyncedRecords(projectStorageKey, projects, isProject);
+  const { records: projectRecords, isReady: areProjectsReady } = useSyncedRecords(projectStorageKey, projects, isProject);
   const { records: testCaseRecords } = useSyncedRecords(testCaseStorageKey, testCases, isTestCase);
   const { records: projectModificationRecords } = useSyncedRecords(
     projectModificationStorageKey,
@@ -302,19 +302,39 @@ export default function DashboardPage() {
   }, []);
 
   const projectOptions = useMemo(() => {
+    if (!areProjectsReady) {
+      return ["All Projects"];
+    }
+
     const names = projectRecords.map((project) => project.name);
     return ["All Projects", ...Array.from(new Set(names))];
-  }, [projectRecords]);
+  }, [areProjectsReady, projectRecords]);
+  const activeProjectNames = useMemo(() => new Set(projectOptions.filter((projectName) => projectName !== "All Projects")), [projectOptions]);
+  const activeProjectRecords = areProjectsReady ? projectRecords : [];
+  const activeTestCaseRecords = areProjectsReady
+    ? testCaseRecords.filter((testCase) => activeProjectNames.has(testCase.project))
+    : [];
+  const activeProjectModificationRecords = areProjectsReady
+    ? projectModificationRecords.filter((record) => activeProjectNames.has(record.project))
+    : [];
 
-  const filteredProjects = selectedProject === "All Projects"
-    ? projectRecords
-    : projectRecords.filter((project) => project.name === selectedProject);
+  useEffect(() => {
+    if (selectedProject !== "All Projects" && !activeProjectNames.has(selectedProject)) {
+      setSelectedProject("All Projects");
+    }
+  }, [activeProjectNames, selectedProject]);
+
+  const filteredProjects = sortRecordsById(
+    selectedProject === "All Projects"
+      ? activeProjectRecords
+      : activeProjectRecords.filter((project) => project.name === selectedProject)
+  );
   const filteredTestCases = selectedProject === "All Projects"
-    ? testCaseRecords
-    : testCaseRecords.filter((testCase) => testCase.project === selectedProject);
+    ? activeTestCaseRecords
+    : activeTestCaseRecords.filter((testCase) => testCase.project === selectedProject);
   const filteredProjectModifications = selectedProject === "All Projects"
-    ? projectModificationRecords
-    : projectModificationRecords.filter((record) => record.project === selectedProject);
+    ? activeProjectModificationRecords
+    : activeProjectModificationRecords.filter((record) => record.project === selectedProject);
 
   const todayKey = getDateKey(currentTime);
   const monthlyTaskRecords = taskActivities.filter((activity) => {

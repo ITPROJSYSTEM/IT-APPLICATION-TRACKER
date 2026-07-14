@@ -15,7 +15,6 @@ import { Bold, Edit3, FileSpreadsheet, Paperclip, Plus, Save, Trash2, X } from "
 
 const testStatuses: TestStatus[] = ["To do", "Passed", "Error", "For Review"];
 const knownTestStatuses: TestStatus[] = ["Not Started", "To do", "Passed", "Failed", "Error", "Blocked", "For Review"];
-const defaultProjectOptions = projects.map((project) => project.name);
 const projectStorageKey = "it-application-tracker-projects";
 const testCaseStorageKey = "it-application-tracker-test-cases";
 const maxImageDimension = 1400;
@@ -234,7 +233,7 @@ export default function TestCasesPage() {
     testCases,
     isStoredTestCase
   );
-  const { records: projectOptionRecords } = useSyncedRecords(
+  const { records: projectOptionRecords, isReady: areProjectsReady } = useSyncedRecords(
     projectStorageKey,
     projects,
     isProjectOptionRecord
@@ -252,11 +251,23 @@ export default function TestCasesPage() {
   const testerRemarksFieldRef = useRef<HTMLTextAreaElement>(null);
   const devRemarksFieldRef = useRef<HTMLTextAreaElement>(null);
 
-  const displayedTestCaseId = editingId ? formData.id : generateTestCaseId(records, formData.project);
   const projectOptions = useMemo(() => {
+    if (!areProjectsReady) {
+      return [];
+    }
+
     const projectNames = projectOptionRecords.map((project) => project.name.trim()).filter(Boolean);
-    return projectNames.length > 0 ? Array.from(new Set(projectNames)) : defaultProjectOptions;
-  }, [projectOptionRecords]);
+    return Array.from(new Set(projectNames));
+  }, [areProjectsReady, projectOptionRecords]);
+  const activeProjectNames = useMemo(() => new Set(projectOptions), [projectOptions]);
+  const activeRecords = useMemo(() => {
+    if (!areProjectsReady) {
+      return [];
+    }
+
+    return records.filter((testCase) => activeProjectNames.has(testCase.project));
+  }, [activeProjectNames, areProjectsReady, records]);
+  const displayedTestCaseId = editingId ? formData.id : generateTestCaseId(activeRecords, formData.project);
 
   function getFilteredProjectTestCase() {
     return {
@@ -273,10 +284,28 @@ export default function TestCasesPage() {
     setFormData((current) => (current.tester ? current : { ...current, tester: loggedInAccount }));
   }, []);
 
+  useEffect(() => {
+    if (!areProjectsReady || !isStorageReady) {
+      return;
+    }
+
+    const nextRecords = records.filter((testCase) => activeProjectNames.has(testCase.project));
+
+    if (nextRecords.length !== records.length) {
+      setRecords(nextRecords);
+    }
+  }, [activeProjectNames, areProjectsReady, isStorageReady, records, setRecords]);
+
+  useEffect(() => {
+    if (projectFilter !== "All" && !activeProjectNames.has(projectFilter)) {
+      setProjectFilter("All");
+    }
+  }, [activeProjectNames, projectFilter]);
+
   const filteredTestCases = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
 
-    const matchingRecords = records.filter((testCase) => {
+    const matchingRecords = activeRecords.filter((testCase) => {
       const matchesProject = projectFilter === "All" || testCase.project === projectFilter;
       const matchesStatus = statusFilter === "All" || testCase.status === statusFilter;
       const searchableValue = [
@@ -297,7 +326,7 @@ export default function TestCasesPage() {
     });
 
     return sortRecordsById(matchingRecords);
-  }, [records, projectFilter, searchTerm, statusFilter]);
+  }, [activeRecords, projectFilter, searchTerm, statusFilter]);
 
   function updateField<Field extends keyof TestCase>(field: Field, value: TestCase[Field]) {
     setFormData((current) => ({ ...current, [field]: value }));
@@ -384,7 +413,7 @@ export default function TestCasesPage() {
     event.preventDefault();
 
     const nextTestCase: TestCase = {
-      id: editingId ? formData.id : generateTestCaseId(records, formData.project.trim()),
+      id: editingId ? formData.id : generateTestCaseId(activeRecords, formData.project.trim()),
       project: formData.project.trim(),
       module: formData.module,
       tester: currentTester || formData.tester.trim(),
@@ -400,10 +429,14 @@ export default function TestCasesPage() {
       !nextTestCase.project ||
       !nextTestCase.module.trim() ||
       !nextTestCase.tester ||
-      !nextTestCase.testerRemarks.trim() ||
-      !nextTestCase.devRemarks.trim()
+      !nextTestCase.testerRemarks.trim()
     ) {
-      setMessage("Complete all test case fields before saving.");
+      setMessage("Complete the project name, details, tester, and QA remarks before saving.");
+      return;
+    }
+
+    if (!activeProjectNames.has(nextTestCase.project)) {
+      setMessage("Select an active project from Project Maintenance before saving.");
       return;
     }
 
@@ -411,7 +444,7 @@ export default function TestCasesPage() {
       setRecords((current) => current.map((testCase) => (testCase.id === editingId ? nextTestCase : testCase)));
       setMessage(`${nextTestCase.id} updated.`);
     } else {
-      setRecords((current) => [nextTestCase, ...current]);
+      setRecords((current) => sortRecordsById([...current, nextTestCase]));
       setMessage(`${nextTestCase.id} added.`);
     }
 
@@ -558,7 +591,9 @@ export default function TestCasesPage() {
               </select>
             </label>
             <label>
-              Last Run
+              <span className="field-label-row">
+                Last Run <span className="optional-label">Optional</span>
+              </span>
               <input
                 type="date"
                 value={isDateValue(formData.lastRun) ? formData.lastRun : ""}
@@ -566,7 +601,9 @@ export default function TestCasesPage() {
               />
             </label>
             <label className="attachment-field">
-              Attachment
+              <span className="field-label-row">
+                Attachment <span className="optional-label">Optional</span>
+              </span>
               <div className="attachment-control">
                 <input id="test-case-attachment" type="file" onChange={attachFile} />
                 <span className="attachment-hint">Images are compressed before saving.</span>
@@ -612,7 +649,9 @@ export default function TestCasesPage() {
               />
             </label>
             <label className="span-2 formatted-field">
-              Developer Remarks
+              <span className="field-label-row">
+                Developer Remarks <span className="optional-label">Optional</span>
+              </span>
               <div className="field-toolbar">
                 <button
                   className="format-action"
