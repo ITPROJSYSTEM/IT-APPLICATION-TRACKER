@@ -40,62 +40,44 @@ alter table public.projects enable row level security;
 alter table public.test_cases enable row level security;
 alter table public.app_data enable row level security;
 
+drop policy if exists "Authenticated users can read projects" on public.projects;
 create policy "Authenticated users can read projects"
   on public.projects for select
   to authenticated
   using (true);
 
+drop policy if exists "Authenticated users can manage projects" on public.projects;
 create policy "Authenticated users can manage projects"
   on public.projects for all
   to authenticated
   using (true)
   with check (true);
 
+drop policy if exists "Authenticated users can read test cases" on public.test_cases;
 create policy "Authenticated users can read test cases"
   on public.test_cases for select
   to authenticated
   using (true);
 
+drop policy if exists "Authenticated users can manage test cases" on public.test_cases;
 create policy "Authenticated users can manage test cases"
   on public.test_cases for all
   to authenticated
   using (true)
   with check (true);
 
-do $$
-begin
-  if not exists (
-    select 1
-    from pg_policies
-    where schemaname = 'public'
-      and tablename = 'app_data'
-      and policyname = 'Public users can read shared app data'
-  ) then
-    create policy "Public users can read shared app data"
-      on public.app_data for select
-      to anon, authenticated
-      using (true);
-  end if;
-end
-$$;
+drop policy if exists "Public users can read shared app data" on public.app_data;
+create policy "Public users can read shared app data"
+  on public.app_data for select
+  to anon, authenticated
+  using (true);
 
-do $$
-begin
-  if not exists (
-    select 1
-    from pg_policies
-    where schemaname = 'public'
-      and tablename = 'app_data'
-      and policyname = 'Public users can update shared app data'
-  ) then
-    create policy "Public users can update shared app data"
-      on public.app_data for all
-      to anon, authenticated
-      using (true)
-      with check (true);
-  end if;
-end
-$$;
+drop policy if exists "Public users can update shared app data" on public.app_data;
+create policy "Public users can update shared app data"
+  on public.app_data for all
+  to anon, authenticated
+  using (true)
+  with check (true);
 
 do $$
 begin
