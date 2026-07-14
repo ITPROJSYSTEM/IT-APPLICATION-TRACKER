@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
+import { FormattedText } from "@/components/formatted-text";
 import { CalendarDays, ChevronLeft, ChevronRight, Edit3, Plus, Save, Trash2, X } from "lucide-react";
 
 type CalendarMode = "week" | "month";
@@ -267,7 +268,9 @@ export default function TaskCalendarActivitiesPage() {
                       {visibleActivities.map((activity) => (
                         <span className="calendar-activity-item" key={activity.id}>
                           <CalendarDays size={12} />
-                          <span>{activity.details}</span>
+                          <span>
+                            <FormattedText value={activity.details} />
+                          </span>
                         </span>
                       ))}
                       {hiddenActivityCount > 0 ? <span className="calendar-activity-more">+{hiddenActivityCount} more</span> : null}
@@ -310,7 +313,9 @@ export default function TaskCalendarActivitiesPage() {
               <div className="task-list">
                 {selectedActivities.map((activity) => (
                   <article className="task-card" key={activity.id}>
-                    <p>{activity.details}</p>
+                    <p>
+                      <FormattedText value={activity.details} />
+                    </p>
                     <div className="task-card-actions">
                       <button className="icon-action" type="button" onClick={() => editTask(activity)} aria-label="Edit task">
                         <Edit3 size={15} />

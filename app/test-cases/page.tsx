@@ -2,16 +2,19 @@
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/app-shell";
+import { FormattedText } from "@/components/formatted-text";
 import { StatusPill } from "@/components/status-pill";
 import { projects, testCases } from "@/lib/data";
 import { exportRowsToExcel } from "@/lib/export-excel";
+import { formatDateForDisplay } from "@/lib/format";
+import { sortRecordsById } from "@/lib/record-sort";
 import type { TestAttachment, TestCase, TestStatus } from "@/lib/types";
+import { readCurrentUserProfile } from "@/lib/user-profile";
 import { Bold, Edit3, FileSpreadsheet, Paperclip, Plus, Save, Trash2, X } from "lucide-react";
 
 const testStatuses: TestStatus[] = ["To do", "Passed", "Error", "For Review"];
 const knownTestStatuses: TestStatus[] = ["Not Started", "To do", "Passed", "Failed", "Error", "Blocked", "For Review"];
 const defaultProjectOptions = projects.map((project) => project.name);
-const currentUserStorageKey = "it-application-tracker-current-user";
 const projectStorageKey = "it-application-tracker-projects";
 const testCaseStorageKey = "it-application-tracker-test-cases";
 const maxImageDimension = 1400;
@@ -237,13 +240,7 @@ async function buildAttachment(file: File): Promise<TestAttachment> {
 type FormattedTextField = "module" | "testerRemarks" | "devRemarks";
 
 function renderFormattedText(value: string) {
-  return value.split(/(\*\*[^*]+\*\*)/g).map((part, index) => {
-    if (part.startsWith("**") && part.endsWith("**")) {
-      return <strong key={`${part}-${index}`}>{part.slice(2, -2)}</strong>;
-    }
-
-    return <span key={`${part}-${index}`}>{part}</span>;
-  });
+  return <FormattedText value={value} />;
 }
 
 export default function TestCasesPage() {
@@ -274,7 +271,7 @@ export default function TestCasesPage() {
   }
 
   useEffect(() => {
-    const loggedInAccount = localStorage.getItem(currentUserStorageKey) ?? "";
+    const loggedInAccount = readCurrentUserProfile().fullName;
     const savedTestCases = localStorage.getItem(testCaseStorageKey);
 
     setCurrentTester(loggedInAccount);
@@ -309,7 +306,7 @@ export default function TestCasesPage() {
   const filteredTestCases = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
 
-    return records.filter((testCase) => {
+    const matchingRecords = records.filter((testCase) => {
       const matchesProject = projectFilter === "All" || testCase.project === projectFilter;
       const matchesStatus = statusFilter === "All" || testCase.status === statusFilter;
       const searchableValue = [
@@ -328,6 +325,8 @@ export default function TestCasesPage() {
 
       return matchesProject && matchesStatus && (!normalizedSearch || searchableValue.includes(normalizedSearch));
     });
+
+    return sortRecordsById(matchingRecords);
   }, [records, projectFilter, searchTerm, statusFilter]);
 
   function updateField<Field extends keyof TestCase>(field: Field, value: TestCase[Field]) {
@@ -427,10 +426,10 @@ export default function TestCasesPage() {
     const nextTestCase: TestCase = {
       id: editingId ? formData.id : generateTestCaseId(records, formData.project.trim()),
       project: formData.project.trim(),
-      module: formData.module.trim(),
+      module: formData.module,
       tester: currentTester || formData.tester.trim(),
-      testerRemarks: formData.testerRemarks.trim(),
-      devRemarks: formData.devRemarks.trim(),
+      testerRemarks: formData.testerRemarks,
+      devRemarks: formData.devRemarks,
       status: formData.status,
       lastRun: formData.lastRun.trim() || "Pending",
       attachment: formData.attachment ?? null,
@@ -439,10 +438,10 @@ export default function TestCasesPage() {
 
     if (
       !nextTestCase.project ||
-      !nextTestCase.module ||
+      !nextTestCase.module.trim() ||
       !nextTestCase.tester ||
-      !nextTestCase.testerRemarks ||
-      !nextTestCase.devRemarks
+      !nextTestCase.testerRemarks.trim() ||
+      !nextTestCase.devRemarks.trim()
     ) {
       setMessage("Complete all test case fields before saving.");
       return;
@@ -512,7 +511,7 @@ export default function TestCasesPage() {
         testCase.testerRemarks,
         testCase.devRemarks,
         testCase.status,
-        testCase.lastRun,
+        formatDateForDisplay(testCase.lastRun),
         testCase.attachment?.name ?? "No attachment"
       ])
     });
@@ -786,7 +785,7 @@ export default function TestCasesPage() {
                     {renderFormattedText(testCase.module)}
                   </td>
                   <td>
-                    <span className="remark-with-author" data-author={`Tester: ${testCase.tester}`}>
+                    <span className="remark-with-author" data-author={`Tester: ${testCase.tester}`} tabIndex={0}>
                       {renderFormattedText(testCase.testerRemarks)}
                     </span>
                   </td>
@@ -794,7 +793,7 @@ export default function TestCasesPage() {
                   <td>
                     <StatusPill value={testCase.status} />
                   </td>
-                  <td>{testCase.lastRun}</td>
+                  <td className="date-cell">{formatDateForDisplay(testCase.lastRun)}</td>
                   <td>
                     {testCase.attachment ? (
                       <button className="attachment-link" type="button" onClick={() => openAttachment(testCase.attachment!)}>

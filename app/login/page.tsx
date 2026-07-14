@@ -3,28 +3,26 @@
 import { useState } from "react";
 import Link from "next/link";
 import { missingSupabaseEnvVars, supabase } from "@/lib/supabase";
-import { Activity, ArrowRight, Lock, Mail } from "lucide-react";
+import { buildUserProfile, demoUserProfile, saveCurrentUserProfile } from "@/lib/user-profile";
+import { Activity, ArrowRight, Lock, Mail, ShieldCheck, UserCircle2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 const demoCredentials = {
-  email: "admin@tracker.local",
+  email: demoUserProfile.email,
   password: "Admin123!"
 };
-const currentUserStorageKey = "it-application-tracker-current-user";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [message, setMessage] = useState(
-    `Demo access: ${demoCredentials.email} / ${demoCredentials.password}`
-  );
+  const [message, setMessage] = useState("");
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (email === demoCredentials.email && password === demoCredentials.password) {
-      localStorage.setItem(currentUserStorageKey, email);
+      saveCurrentUserProfile(demoUserProfile);
       setMessage("Demo login successful. Opening dashboard...");
       router.push("/dashboard");
       return;
@@ -42,7 +40,7 @@ export default function LoginPage() {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (!error && data.user.email) {
-      localStorage.setItem(currentUserStorageKey, data.user.email);
+      saveCurrentUserProfile(buildUserProfile(data.user.email, data.user.user_metadata));
       setMessage("Logged in successfully. Opening dashboard...");
       router.push("/dashboard");
       return;
@@ -56,7 +54,7 @@ export default function LoginPage() {
   }
 
   function handleDemoLogin() {
-    localStorage.setItem(currentUserStorageKey, demoCredentials.email);
+    saveCurrentUserProfile(demoUserProfile);
     setMessage("Demo login successful. Opening dashboard...");
     router.push("/dashboard");
   }
@@ -110,11 +108,19 @@ export default function LoginPage() {
             Sign in
             <ArrowRight size={17} />
           </button>
+          <div className="login-divider" aria-hidden="true">
+            <span>or</span>
+          </div>
           <button className="secondary-action login-button" type="button" onClick={handleDemoLogin}>
+            <UserCircle2 size={20} />
             Use demo account
           </button>
         </form>
-        <p className="form-message">{message}</p>
+        {message ? <p className="form-message">{message}</p> : null}
+        <div className="login-security">
+          <ShieldCheck size={20} />
+          <span>Your data is protected with enterprise-grade security</span>
+        </div>
       </section>
     </main>
   );

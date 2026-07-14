@@ -1,11 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { type HTMLAttributes, type KeyboardEvent, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
+import { FormattedText } from "@/components/formatted-text";
 import { StatusPill } from "@/components/status-pill";
 import { projects, testCases } from "@/lib/data";
+import { formatDateForDisplay } from "@/lib/format";
+import { sortRecordsById } from "@/lib/record-sort";
 import type { ProjectStatus, TestCase, TestStatus } from "@/lib/types";
+import { demoUserProfile, readCurrentUserProfile } from "@/lib/user-profile";
 import {
   AlertTriangle,
   CalendarDays,
@@ -47,7 +51,6 @@ type DashboardProject = {
   progress?: number;
 };
 
-const currentUserStorageKey = "it-application-tracker-current-user";
 const projectStorageKey = "it-application-tracker-projects";
 const testCaseStorageKey = "it-application-tracker-test-cases";
 const projectModificationStorageKey = "it-application-tracker-project-modification-records";
@@ -148,21 +151,6 @@ function loadSavedArray<T>(key: string, validator: (value: unknown) => value is 
   }
 }
 
-function formatUserName(value: string | null) {
-  if (!value) {
-    return "Jessica Maica Libre";
-  }
-
-  const name = value.includes("@") ? value.split("@")[0] : value;
-  const cleanedName = name.replace(/[._-]+/g, " ").trim();
-
-  if (!cleanedName) {
-    return "Jessica Maica Libre";
-  }
-
-  return cleanedName.replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
 function getDateKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
@@ -172,18 +160,7 @@ function getMonthLabel(date: Date) {
 }
 
 function getActivityDateLabel(dateKey: string) {
-  const date = new Date(`${dateKey}T00:00:00`);
-
-  if (Number.isNaN(date.getTime())) {
-    return dateKey;
-  }
-
-  return date.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric"
-  });
+  return formatDateForDisplay(dateKey);
 }
 
 function getDashboardDate(date: Date) {
@@ -207,7 +184,7 @@ function getStatusCount(records: TestCase[], statuses: TestStatus[]) {
 }
 
 function getStatusRecords(records: TestCase[], statuses: TestStatus[]) {
-  return records.filter((record) => statuses.includes(record.status));
+  return sortRecordsById(records.filter((record) => statuses.includes(record.status)));
 }
 
 function getProjectProgress(project: DashboardProject) {
@@ -237,13 +214,7 @@ function getInitials(value: string) {
 }
 
 function renderFormattedText(value: string) {
-  return value.split(/(\*\*[^*]+\*\*)/g).map((part, index) => {
-    if (part.startsWith("**") && part.endsWith("**")) {
-      return <strong key={`${part}-${index}`}>{part.slice(2, -2)}</strong>;
-    }
-
-    return <span key={`${part}-${index}`}>{part}</span>;
-  });
+  return <FormattedText value={value} />;
 }
 
 function isImageAttachment(attachment: DashboardAttachment) {
@@ -327,16 +298,17 @@ function MetricCard({
 
 export default function DashboardPage() {
   const [currentTime, setCurrentTime] = useState(() => new Date());
-  const [currentUser, setCurrentUser] = useState("Jessica Maica Libre");
+  const [currentUser, setCurrentUser] = useState(demoUserProfile);
   const [selectedProject, setSelectedProject] = useState("All Projects");
   const [projectRecords, setProjectRecords] = useState<DashboardProject[]>(projects);
   const [testCaseRecords, setTestCaseRecords] = useState<TestCase[]>(testCases);
   const [projectModificationRecords, setProjectModificationRecords] = useState<TestCase[]>(testCases);
   const [taskActivities, setTaskActivities] = useState<TaskActivity[]>([]);
   const [previewAttachment, setPreviewAttachment] = useState<DashboardAttachment | null>(null);
+  const [selectedDetailRow, setSelectedDetailRow] = useState<string | null>(null);
 
   useEffect(() => {
-    setCurrentUser(formatUserName(localStorage.getItem(currentUserStorageKey)));
+    setCurrentUser(readCurrentUserProfile());
     setProjectRecords(loadSavedArray(projectStorageKey, isProject, projects));
     setTestCaseRecords(loadSavedArray(testCaseStorageKey, isTestCase, testCases));
     setProjectModificationRecords(loadSavedArray(projectModificationStorageKey, isTestCase, testCases));
@@ -457,6 +429,30 @@ export default function DashboardPage() {
     }
   ];
 
+  function getDetailRowProps(rowKey: string): HTMLAttributes<HTMLTableRowElement> {
+    const isSelected = selectedDetailRow === rowKey;
+
+    function selectRow() {
+      setSelectedDetailRow(rowKey);
+    }
+
+    function selectRowWithKeyboard(event: KeyboardEvent<HTMLTableRowElement>) {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        selectRow();
+      }
+    }
+
+    return {
+      "aria-selected": isSelected,
+      className: `dashboard-detail-row${isSelected ? " selected" : ""}`,
+      onClick: selectRow,
+      onKeyDown: selectRowWithKeyboard,
+      role: "row",
+      tabIndex: 0
+    };
+  }
+
   function renderDetailModal(detail: (typeof detailConfigs)[number]) {
     const dateLabel = detail.source === "project-modification" ? "Date Modified" : "Last Run";
     const emptyLabel = detail.source === "project-modification" ? "records" : "test cases";
@@ -503,7 +499,7 @@ export default function DashboardPage() {
                 </thead>
                 <tbody>
                   {detail.records.map((record) => (
-                    <tr key={record.id}>
+                    <tr key={record.id} {...getDetailRowProps(`${detail.id}:${record.id}`)}>
                       <td>
                         <strong>{record.id}</strong>
                       </td>
@@ -513,7 +509,7 @@ export default function DashboardPage() {
                       <td>
                         <StatusPill value={record.status} />
                       </td>
-                      <td>{record.lastRun}</td>
+                      <td className="date-cell">{formatDateForDisplay(record.lastRun)}</td>
                       <td>{renderAttachment(record.attachment ?? null, setPreviewAttachment)}</td>
                     </tr>
                   ))}
@@ -542,13 +538,13 @@ export default function DashboardPage() {
                 </thead>
                 <tbody>
                   {detail.records.map((record) => (
-                    <tr key={record.id}>
+                    <tr key={record.id} {...getDetailRowProps(`${detail.id}:${record.id}`)}>
                       <td>
                         <strong>{record.id}</strong>
                       </td>
                       <td>{record.project}</td>
                       <td>{renderFormattedText(record.module)}</td>
-                      <td>{record.lastRun}</td>
+                      <td className="date-cell">{formatDateForDisplay(record.lastRun)}</td>
                       <td>{record.testerRemarks ? renderFormattedText(record.testerRemarks) : "-"}</td>
                       <td>{record.devRemarks ? renderFormattedText(record.devRemarks) : "-"}</td>
                       <td>
@@ -605,7 +601,7 @@ export default function DashboardPage() {
                 </thead>
                 <tbody>
                   {detail.records.map((activity) => (
-                    <tr key={activity.id}>
+                    <tr key={activity.id} {...getDetailRowProps(`${detail.id}:${activity.id}`)}>
                       <td>
                         <strong>{getActivityDateLabel(activity.date)}</strong>
                       </td>
@@ -635,7 +631,7 @@ export default function DashboardPage() {
         <div className="dashboard-welcome">
           <div>
             <h1>
-              Welcome back, <span>{currentUser}</span>
+              Welcome back, <span>{currentUser.fullName}</span>
             </h1>
             <p>Here is what is happening with your projects today.</p>
           </div>
@@ -856,9 +852,11 @@ export default function DashboardPage() {
             {filteredTestCases.slice(0, 5).map((testCase) => (
               <article className="activity-item" key={testCase.id}>
                 <div>
-                  <strong>{testCase.module}</strong>
+                  <strong>
+                    <FormattedText value={testCase.module} />
+                  </strong>
                   <small>
-                    {testCase.project} • {testCase.lastRun}
+                    {testCase.project} • {formatDateForDisplay(testCase.lastRun)}
                   </small>
                 </div>
                 <StatusPill value={testCase.status} />

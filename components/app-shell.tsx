@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { demoUserProfile, getInitials, readCurrentUserProfile } from "@/lib/user-profile";
 import { CalendarDays, ClipboardCheck, FolderKanban, LayoutDashboard, LogIn, Moon, Sun, Wrench } from "lucide-react";
 
 const navItems = [
@@ -10,11 +11,9 @@ const navItems = [
   { href: "/task-calendar-activities", label: "Task Calendar Activities", icon: CalendarDays },
   { href: "/project-modification", label: "Project Modification", icon: Wrench },
   { href: "/test-cases", label: "Test Case Management", icon: ClipboardCheck },
-  { href: "/projects", label: "Project Maintenance", icon: FolderKanban },
-  { href: "/login", label: "Log in", icon: LogIn }
+  { href: "/projects", label: "Project Maintenance", icon: FolderKanban }
 ];
 const themeStorageKey = "it-application-tracker-theme";
-const currentUserStorageKey = "it-application-tracker-current-user";
 const themes = [
   { id: "maroon-dark", label: "Maroon Dark", icon: Moon },
   { id: "maroon-light", label: "Maroon Light", icon: Sun }
@@ -26,42 +25,17 @@ function isThemeId(value: string | null): value is ThemeId {
   return themes.some((theme) => theme.id === value);
 }
 
-function formatUserName(value: string | null) {
-  if (!value) {
-    return "Jessica Maica Libre";
-  }
-
-  const name = value.includes("@") ? value.split("@")[0] : value;
-  const cleanedName = name.replace(/[._-]+/g, " ").trim();
-
-  if (!cleanedName) {
-    return "Jessica Maica Libre";
-  }
-
-  return cleanedName.replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
-function getInitials(value: string) {
-  return value
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
-}
-
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [theme, setTheme] = useState<ThemeId>("maroon-dark");
-  const [currentUser, setCurrentUser] = useState("Jessica Maica Libre");
+  const [currentUser, setCurrentUser] = useState(demoUserProfile);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem(themeStorageKey);
     const nextTheme = isThemeId(savedTheme) ? savedTheme : "maroon-dark";
 
     setTheme(nextTheme);
-    setCurrentUser(formatUserName(localStorage.getItem(currentUserStorageKey)));
+    setCurrentUser(readCurrentUserProfile());
     document.documentElement.dataset.theme = nextTheme;
   }, []);
 
@@ -76,11 +50,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <aside className="sidebar" aria-label="Application navigation">
         <Link href="/dashboard" className="brand sidebar-profile">
           <span className="brand-mark profile-mark">
-            {getInitials(currentUser)}
+            {currentUser.avatarUrl ? (
+              <span
+                aria-hidden="true"
+                className="profile-photo"
+                style={{ backgroundImage: `url("${currentUser.avatarUrl}")` }}
+              />
+            ) : (
+              getInitials(currentUser.fullName)
+            )}
           </span>
           <span>
-            <strong>{currentUser}</strong>
-            <small>Project Coordinator</small>
+            <strong>{currentUser.fullName}</strong>
+            <small>{currentUser.position}</small>
           </span>
         </Link>
         <nav className="sidebar-nav" aria-label="Primary navigation">
@@ -122,6 +104,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               );
             })}
           </div>
+        </div>
+        <div className="sidebar-account" aria-label="Account actions">
+          <Link
+            href="/login"
+            className={`account-action${pathname === "/login" ? " active" : ""}`}
+            aria-current={pathname === "/login" ? "page" : undefined}
+          >
+            <LogIn size={17} />
+            <span>Log in</span>
+          </Link>
         </div>
       </aside>
       <main className="main-content">{children}</main>

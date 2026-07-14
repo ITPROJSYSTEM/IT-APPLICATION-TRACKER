@@ -38,6 +38,16 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-sb-publishable-key
 
 The login page uses Supabase Auth with email and password.
 
+To show each user's profile details, add these values to the Supabase Auth user's metadata:
+
+```json
+{
+  "full_name": "Jessica Maica Libre",
+  "position": "Project Coordinator",
+  "avatar_url": "https://example.com/profile.jpg"
+}
+```
+
 Temporary demo credential:
 
 ```text
