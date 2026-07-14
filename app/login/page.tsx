@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { missingSupabaseEnvVars, supabase } from "@/lib/supabase";
 import { Activity, ArrowRight, Lock, Mail } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -31,7 +31,11 @@ export default function LoginPage() {
     }
 
     if (!supabase) {
-      setMessage("Invalid demo credentials. Supabase login is available after environment variables are configured.");
+      setMessage(
+        `Invalid demo credentials. Supabase login is unavailable because ${missingSupabaseEnvVars.join(
+          " and "
+        )} ${missingSupabaseEnvVars.length === 1 ? "is" : "are"} missing.`
+      );
       return;
     }
 
@@ -39,9 +43,22 @@ export default function LoginPage() {
 
     if (!error && data.user.email) {
       localStorage.setItem(currentUserStorageKey, data.user.email);
+      setMessage("Logged in successfully. Opening dashboard...");
+      router.push("/dashboard");
+      return;
     }
 
-    setMessage(error ? error.message : "Logged in successfully.");
+    setMessage(
+      error
+        ? `${error.message}. Use the demo login or create this email as a Supabase Auth user first.`
+        : "Logged in successfully."
+    );
+  }
+
+  function handleDemoLogin() {
+    localStorage.setItem(currentUserStorageKey, demoCredentials.email);
+    setMessage("Demo login successful. Opening dashboard...");
+    router.push("/dashboard");
   }
 
   return (
@@ -92,6 +109,9 @@ export default function LoginPage() {
           <button className="primary-action login-button" type="submit">
             Sign in
             <ArrowRight size={17} />
+          </button>
+          <button className="secondary-action login-button" type="button" onClick={handleDemoLogin}>
+            Use demo account
           </button>
         </form>
         <p className="form-message">{message}</p>

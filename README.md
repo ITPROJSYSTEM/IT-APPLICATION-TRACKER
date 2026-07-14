@@ -26,13 +26,15 @@ You can also double-click `start-preview.cmd`, wait until the terminal says `Rea
 
 1. Create a Supabase project.
 2. Run `supabase/schema.sql` in the Supabase SQL editor.
-3. Copy `.env.example` to `.env.local`.
+3. Copy `.env.example` to `.env.local` in the project root.
 4. Fill in:
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=your-project-url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-sb-publishable-key
 ```
+
+`supabase/.env.local` is not loaded by the Next.js app. After changing `.env.local`, restart the dev server so the browser bundle receives the new values.
 
 The login page uses Supabase Auth with email and password.
 
