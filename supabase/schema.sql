@@ -30,8 +30,15 @@ create table if not exists public.test_cases (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.app_data (
+  data_key text primary key,
+  data jsonb not null default '[]'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
 alter table public.projects enable row level security;
 alter table public.test_cases enable row level security;
+alter table public.app_data enable row level security;
 
 create policy "Authenticated users can read projects"
   on public.projects for select
@@ -54,3 +61,52 @@ create policy "Authenticated users can manage test cases"
   to authenticated
   using (true)
   with check (true);
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'app_data'
+      and policyname = 'Public users can read shared app data'
+  ) then
+    create policy "Public users can read shared app data"
+      on public.app_data for select
+      to anon, authenticated
+      using (true);
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'app_data'
+      and policyname = 'Public users can update shared app data'
+  ) then
+    create policy "Public users can update shared app data"
+      on public.app_data for all
+      to anon, authenticated
+      using (true)
+      with check (true);
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'app_data'
+  ) then
+    alter publication supabase_realtime add table public.app_data;
+  end if;
+end
+$$;

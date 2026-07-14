@@ -1,10 +1,11 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { StatusPill } from "@/components/status-pill";
 import { projects } from "@/lib/data";
 import { exportRowsToExcel } from "@/lib/export-excel";
+import { useSyncedRecords } from "@/lib/shared-records";
 import type { ProjectStatus } from "@/lib/types";
 import { Edit3, FileSpreadsheet, Plus, Save, Trash2, X } from "lucide-react";
 
@@ -67,8 +68,7 @@ function isMaintenanceProject(value: unknown): value is MaintenanceProject {
 }
 
 export default function ProjectsPage() {
-  const [records, setRecords] = useState<MaintenanceProject[]>(initialProjects);
-  const [isStorageReady, setIsStorageReady] = useState(false);
+  const { records, setRecords } = useSyncedRecords(projectStorageKey, initialProjects, isMaintenanceProject);
   const [formData, setFormData] = useState<MaintenanceProject>(emptyProject);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isFormVisible, setIsFormVisible] = useState(false);
@@ -97,30 +97,6 @@ export default function ProjectsPage() {
   }, [records, searchTerm, statusFilter]);
 
   const displayedProjectId = editingId ? formData.id : generateProjectId(records);
-
-  useEffect(() => {
-    const savedProjects = localStorage.getItem(projectStorageKey);
-
-    if (savedProjects) {
-      try {
-        const parsedProjects: unknown = JSON.parse(savedProjects);
-
-        if (Array.isArray(parsedProjects) && parsedProjects.every(isMaintenanceProject)) {
-          setRecords(parsedProjects);
-        }
-      } catch {
-        localStorage.removeItem(projectStorageKey);
-      }
-    }
-
-    setIsStorageReady(true);
-  }, []);
-
-  useEffect(() => {
-    if (isStorageReady) {
-      localStorage.setItem(projectStorageKey, JSON.stringify(records));
-    }
-  }, [isStorageReady, records]);
 
   function updateField<Field extends keyof MaintenanceProject>(field: Field, value: MaintenanceProject[Field]) {
     setFormData((current) => ({ ...current, [field]: value }));

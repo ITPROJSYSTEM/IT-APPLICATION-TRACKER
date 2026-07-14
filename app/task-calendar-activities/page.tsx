@@ -1,8 +1,9 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { FormattedText } from "@/components/formatted-text";
+import { useSyncedRecords } from "@/lib/shared-records";
 import { CalendarDays, ChevronLeft, ChevronRight, Edit3, Plus, Save, Trash2, X } from "lucide-react";
 
 type CalendarMode = "week" | "month";
@@ -15,6 +16,7 @@ type TaskActivity = {
 
 const activityStorageKey = "it-application-tracker-task-calendar-activities";
 const dayLabels = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const initialActivities: TaskActivity[] = [];
 
 function getDateKey(date: Date) {
   const year = date.getFullYear();
@@ -64,33 +66,19 @@ function getWeekDates(date: Date) {
   });
 }
 
-function parseSavedActivities(value: string | null): TaskActivity[] {
-  if (!value) {
-    return [];
+function isTaskActivity(value: unknown): value is TaskActivity {
+  if (!value || typeof value !== "object") {
+    return false;
   }
 
-  try {
-    const parsed: unknown = JSON.parse(value);
-
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-
-    return parsed.filter((activity): activity is TaskActivity => {
-      return (
-        activity &&
-        typeof activity === "object" &&
-        "id" in activity &&
-        "date" in activity &&
-        "details" in activity &&
-        typeof activity.id === "string" &&
-        typeof activity.date === "string" &&
-        typeof activity.details === "string"
-      );
-    });
-  } catch {
-    return [];
-  }
+  return (
+    "id" in value &&
+    "date" in value &&
+    "details" in value &&
+    typeof value.id === "string" &&
+    typeof value.date === "string" &&
+    typeof value.details === "string"
+  );
 }
 
 export default function TaskCalendarActivitiesPage() {
@@ -100,8 +88,11 @@ export default function TaskCalendarActivitiesPage() {
   const [selectedDate, setSelectedDate] = useState(today);
   const [taskDetails, setTaskDetails] = useState("");
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const [activities, setActivities] = useState<TaskActivity[]>([]);
-  const [isStorageReady, setIsStorageReady] = useState(false);
+  const { records: activities, setRecords: setActivities } = useSyncedRecords(
+    activityStorageKey,
+    initialActivities,
+    isTaskActivity
+  );
 
   const selectedDateKey = getDateKey(selectedDate);
   const visibleDates = mode === "month" ? getMonthGridDates(viewDate) : getWeekDates(viewDate);
@@ -110,19 +101,6 @@ export default function TaskCalendarActivitiesPage() {
     groups[activity.date] = [...(groups[activity.date] ?? []), activity];
     return groups;
   }, {});
-
-  useEffect(() => {
-    setActivities(parseSavedActivities(localStorage.getItem(activityStorageKey)));
-    setIsStorageReady(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isStorageReady) {
-      return;
-    }
-
-    localStorage.setItem(activityStorageKey, JSON.stringify(activities));
-  }, [activities, isStorageReady]);
 
   function changeCalendar(step: number) {
     setViewDate((current) => {

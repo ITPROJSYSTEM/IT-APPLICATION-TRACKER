@@ -8,6 +8,7 @@ import { projects, testCases } from "@/lib/data";
 import { exportRowsToExcel } from "@/lib/export-excel";
 import { formatDateForDisplay } from "@/lib/format";
 import { sortRecordsById } from "@/lib/record-sort";
+import { useSyncedRecords } from "@/lib/shared-records";
 import type { TestAttachment, TestCase, TestStatus } from "@/lib/types";
 import { readCurrentUserProfile } from "@/lib/user-profile";
 import { Bold, Edit3, FileSpreadsheet, Paperclip, Plus, Save, Trash2, X } from "lucide-react";
@@ -27,11 +28,14 @@ const knownTestStatuses: TestStatus[] = [
 ];
 const defaultProjectOptions = projects.map((project) => project.name);
 const projectStorageKey = "it-application-tracker-projects";
-const sourceTestCaseStorageKey = "it-application-tracker-test-cases";
 const testCaseStorageKey = "it-application-tracker-project-modification-records";
 const maxImageDimension = 1400;
 const maxStoredAttachmentBytes = 900 * 1024;
 const maxPlainAttachmentBytes = 350 * 1024;
+
+type ProjectOptionRecord = {
+  name: string;
+};
 
 const emptyTestCase: TestCase = {
   id: "",
@@ -78,34 +82,14 @@ function generateTestCaseId(records: TestCase[], projectName: string) {
   return `${projectCode}-${String(nextNumber).padStart(2, "0")}`;
 }
 
-function getSavedProjectOptions() {
-  const savedProjects = localStorage.getItem(projectStorageKey);
-
-  if (!savedProjects) {
-    return defaultProjectOptions;
+function isProjectOptionRecord(value: unknown): value is ProjectOptionRecord {
+  if (!value || typeof value !== "object") {
+    return false;
   }
 
-  try {
-    const parsedProjects: unknown = JSON.parse(savedProjects);
+  const project = value as Partial<ProjectOptionRecord>;
 
-    if (!Array.isArray(parsedProjects)) {
-      return defaultProjectOptions;
-    }
-
-    const projectNames = parsedProjects
-      .map((project) => {
-        if (project && typeof project === "object" && "name" in project) {
-          return String(project.name).trim();
-        }
-
-        return "";
-      })
-      .filter(Boolean);
-
-    return projectNames.length > 0 ? Array.from(new Set(projectNames)) : defaultProjectOptions;
-  } catch {
-    return defaultProjectOptions;
-  }
+  return typeof project.name === "string";
 }
 
 function isTestAttachment(value: unknown): value is TestAttachment {
@@ -161,6 +145,11 @@ function normalizeProjectModificationStatus(status: TestStatus): TestStatus {
 
   return status;
 }
+
+const initialProjectModificationRecords = testCases.map((testCase) => ({
+  ...testCase,
+  status: normalizeProjectModificationStatus(testCase.status)
+}));
 
 function formatBytes(bytes: number) {
   if (bytes < 1024) {
@@ -272,9 +261,16 @@ function renderFormattedText(value: string) {
 }
 
 export default function ProjectModificationPage() {
-  const [records, setRecords] = useState<TestCase[]>(testCases);
-  const [isStorageReady, setIsStorageReady] = useState(false);
-  const [projectOptions, setProjectOptions] = useState(defaultProjectOptions);
+  const { records, setRecords, isReady: isStorageReady } = useSyncedRecords(
+    testCaseStorageKey,
+    initialProjectModificationRecords,
+    isStoredTestCase
+  );
+  const { records: projectOptionRecords } = useSyncedRecords(
+    projectStorageKey,
+    projects,
+    isProjectOptionRecord
+  );
   const [formData, setFormData] = useState<TestCase>(emptyTestCase);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isFormVisible, setIsFormVisible] = useState(false);
@@ -288,6 +284,10 @@ export default function ProjectModificationPage() {
   const devRemarksFieldRef = useRef<HTMLTextAreaElement>(null);
 
   const displayedTestCaseId = editingId ? formData.id : generateTestCaseId(records, formData.project);
+  const projectOptions = useMemo(() => {
+    const projectNames = projectOptionRecords.map((project) => project.name.trim()).filter(Boolean);
+    return projectNames.length > 0 ? Array.from(new Set(projectNames)) : defaultProjectOptions;
+  }, [projectOptionRecords]);
 
   function getFilteredProjectTestCase() {
     return {
@@ -299,41 +299,10 @@ export default function ProjectModificationPage() {
 
   useEffect(() => {
     const loggedInAccount = readCurrentUserProfile().fullName;
-    const savedTestCases = localStorage.getItem(testCaseStorageKey) ?? localStorage.getItem(sourceTestCaseStorageKey);
 
     setCurrentTester(loggedInAccount);
     setFormData((current) => (current.tester ? current : { ...current, tester: loggedInAccount }));
-    setProjectOptions(getSavedProjectOptions());
-
-    if (savedTestCases) {
-      try {
-        const parsedTestCases: unknown = JSON.parse(savedTestCases);
-
-        if (Array.isArray(parsedTestCases) && parsedTestCases.every(isStoredTestCase)) {
-          setRecords(
-            parsedTestCases.map((testCase) => ({
-              ...testCase,
-              status: normalizeProjectModificationStatus(testCase.status)
-            }))
-          );
-        }
-      } catch {
-        localStorage.removeItem(testCaseStorageKey);
-      }
-    }
-
-    setIsStorageReady(true);
   }, []);
-
-  useEffect(() => {
-    if (isStorageReady) {
-      try {
-        localStorage.setItem(testCaseStorageKey, JSON.stringify(records));
-      } catch {
-        setMessage("Browser storage is full. Remove an attachment or use a smaller image before refreshing.");
-      }
-    }
-  }, [isStorageReady, records]);
 
   const filteredTestCases = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -367,17 +336,7 @@ export default function ProjectModificationPage() {
 
   function persistRecordsImmediately(nextRecords: TestCase[]) {
     setRecords(nextRecords);
-
-    if (!isStorageReady) {
-      return true;
-    }
-
-    try {
-      localStorage.setItem(testCaseStorageKey, JSON.stringify(nextRecords));
-      return true;
-    } catch {
-      return false;
-    }
+    return isStorageReady;
   }
 
   async function attachFile(event: ChangeEvent<HTMLInputElement>) {

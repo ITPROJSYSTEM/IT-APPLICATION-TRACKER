@@ -8,6 +8,7 @@ import { StatusPill } from "@/components/status-pill";
 import { projects, testCases } from "@/lib/data";
 import { formatDateForDisplay } from "@/lib/format";
 import { sortRecordsById } from "@/lib/record-sort";
+import { useSyncedRecords } from "@/lib/shared-records";
 import type { ProjectStatus, TestCase, TestStatus } from "@/lib/types";
 import { demoUserProfile, readCurrentUserProfile } from "@/lib/user-profile";
 import {
@@ -55,6 +56,7 @@ const projectStorageKey = "it-application-tracker-projects";
 const testCaseStorageKey = "it-application-tracker-test-cases";
 const projectModificationStorageKey = "it-application-tracker-project-modification-records";
 const taskActivityStorageKey = "it-application-tracker-task-calendar-activities";
+const initialTaskActivities: TaskActivity[] = [];
 
 const toDoStatuses: TestStatus[] = ["To Do", "To do", "Not Started"];
 const projectModificationStatuses = {
@@ -128,27 +130,6 @@ function isTaskActivity(value: unknown): value is TaskActivity {
   const activity = value as Partial<TaskActivity>;
 
   return typeof activity.id === "string" && typeof activity.date === "string" && typeof activity.details === "string";
-}
-
-function loadSavedArray<T>(key: string, validator: (value: unknown) => value is T, fallback: T[]) {
-  const saved = localStorage.getItem(key);
-
-  if (!saved) {
-    return fallback;
-  }
-
-  try {
-    const parsed: unknown = JSON.parse(saved);
-
-    if (!Array.isArray(parsed)) {
-      return fallback;
-    }
-
-    const records = parsed.filter(validator);
-    return records.length > 0 ? records : fallback;
-  } catch {
-    return fallback;
-  }
 }
 
 function getDateKey(date: Date) {
@@ -300,19 +281,19 @@ export default function DashboardPage() {
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const [currentUser, setCurrentUser] = useState(demoUserProfile);
   const [selectedProject, setSelectedProject] = useState("All Projects");
-  const [projectRecords, setProjectRecords] = useState<DashboardProject[]>(projects);
-  const [testCaseRecords, setTestCaseRecords] = useState<TestCase[]>(testCases);
-  const [projectModificationRecords, setProjectModificationRecords] = useState<TestCase[]>(testCases);
-  const [taskActivities, setTaskActivities] = useState<TaskActivity[]>([]);
+  const { records: projectRecords } = useSyncedRecords(projectStorageKey, projects, isProject);
+  const { records: testCaseRecords } = useSyncedRecords(testCaseStorageKey, testCases, isTestCase);
+  const { records: projectModificationRecords } = useSyncedRecords(
+    projectModificationStorageKey,
+    testCases,
+    isTestCase
+  );
+  const { records: taskActivities } = useSyncedRecords(taskActivityStorageKey, initialTaskActivities, isTaskActivity);
   const [previewAttachment, setPreviewAttachment] = useState<DashboardAttachment | null>(null);
   const [selectedDetailRow, setSelectedDetailRow] = useState<string | null>(null);
 
   useEffect(() => {
     setCurrentUser(readCurrentUserProfile());
-    setProjectRecords(loadSavedArray(projectStorageKey, isProject, projects));
-    setTestCaseRecords(loadSavedArray(testCaseStorageKey, isTestCase, testCases));
-    setProjectModificationRecords(loadSavedArray(projectModificationStorageKey, isTestCase, testCases));
-    setTaskActivities(loadSavedArray(taskActivityStorageKey, isTaskActivity, []));
   }, []);
 
   useEffect(() => {
