@@ -946,7 +946,7 @@ export default function TestCasesPage() {
                   <td>
                     <strong>{testCase.id}</strong>
                   </td>
-                  <td>
+                  <td className="project-name-cell">
                     <strong>{testCase.project}</strong>
                   </td>
                   <td>

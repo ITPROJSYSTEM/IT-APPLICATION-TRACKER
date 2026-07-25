@@ -1333,6 +1333,16 @@ td:first-child {
   white-space: nowrap;
 }
 
+.project-name-cell {
+  min-width: 190px;
+  white-space: nowrap;
+}
+
+.project-name-cell strong {
+  display: inline-block;
+  white-space: nowrap;
+}
+
 tbody tr {
   transition: background 160ms ease;
 }
