@@ -13,12 +13,18 @@ import type { ProjectStatus, TestCase, TestStatus } from "@/lib/types";
 import { demoUserProfile, readCurrentUserProfile } from "@/lib/user-profile";
 import {
   AlertTriangle,
+  Briefcase,
   CalendarDays,
   CheckCircle2,
   ChevronRight,
   ClipboardList,
   Clock3,
+  FileText,
+  MessageSquare,
   RotateCw,
+  ShieldAlert,
+  ShoppingCart,
+  Users,
   Wrench,
   X
 } from "lucide-react";
@@ -146,6 +152,32 @@ function getDateKey(date: Date) {
 
 function getMonthLabel(date: Date) {
   return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
+
+function getProjectTickerIcon(projectName: string): typeof ClipboardList {
+  const normalizedName = projectName.toLowerCase();
+
+  if (normalizedName.includes("purchase")) {
+    return ShoppingCart;
+  }
+
+  if (normalizedName.includes("job")) {
+    return Briefcase;
+  }
+
+  if (normalizedName.includes("incident")) {
+    return ShieldAlert;
+  }
+
+  if (normalizedName.includes("complaint")) {
+    return MessageSquare;
+  }
+
+  if (normalizedName.includes("sales")) {
+    return FileText;
+  }
+
+  return Users;
 }
 
 function getActivityDateLabel(dateKey: string) {
@@ -662,18 +694,35 @@ export default function DashboardPage() {
       ) : null}
       {projectTickerNames.length > 0 ? (
         <section className="dashboard-project-ticker" aria-label="All active project names">
-          <span className="project-ticker-label">Running Projects</span>
+          <span className="project-ticker-label">
+            <ClipboardList size={24} />
+            Running Projects
+          </span>
           <div className="project-ticker-window">
             <div className="project-ticker-track">
               <div className="project-ticker-group">
-                {projectTickerNames.map((projectName, index) => (
-                  <span key={`project-ticker-${projectName}-${index}`}>{projectName}</span>
-                ))}
+                {projectTickerNames.map((projectName, index) => {
+                  const ProjectIcon = getProjectTickerIcon(projectName);
+
+                  return (
+                    <span className="project-ticker-item" key={`project-ticker-${projectName}-${index}`}>
+                      <ProjectIcon size={24} />
+                      {projectName}
+                    </span>
+                  );
+                })}
               </div>
               <div className="project-ticker-group" aria-hidden="true">
-                {projectTickerNames.map((projectName, index) => (
-                  <span key={`project-ticker-repeat-${projectName}-${index}`}>{projectName}</span>
-                ))}
+                {projectTickerNames.map((projectName, index) => {
+                  const ProjectIcon = getProjectTickerIcon(projectName);
+
+                  return (
+                    <span className="project-ticker-item" key={`project-ticker-repeat-${projectName}-${index}`}>
+                      <ProjectIcon size={24} />
+                      {projectName}
+                    </span>
+                  );
+                })}
               </div>
             </div>
           </div>
