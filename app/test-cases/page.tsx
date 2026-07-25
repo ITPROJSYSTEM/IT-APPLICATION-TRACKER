@@ -50,6 +50,14 @@ function isDateValue(value: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
+function openDatePicker(input: HTMLInputElement) {
+  try {
+    input.showPicker?.();
+  } catch {
+    input.focus();
+  }
+}
+
 function getProjectCode(projectName: string) {
   const words = projectName.trim().split(/[^a-zA-Z0-9]+/).filter(Boolean);
 
@@ -777,6 +785,8 @@ export default function TestCasesPage() {
                 type="date"
                 value={isDateValue(formData.lastRun) ? formData.lastRun : ""}
                 onChange={(event) => updateField("lastRun", event.target.value)}
+                onClick={(event) => openDatePicker(event.currentTarget)}
+                onFocus={(event) => openDatePicker(event.currentTarget)}
               />
             </label>
             <label className="attachment-field">

@@ -319,6 +319,10 @@ export default function DashboardPage() {
     return ["All Projects", ...Array.from(new Set(names))];
   }, [areProjectsReady, projectRecords]);
   const activeProjectNames = useMemo(() => new Set(projectOptions.filter((projectName) => projectName !== "All Projects")), [projectOptions]);
+  const projectTickerNames = useMemo(
+    () => projectOptions.filter((projectName) => projectName !== "All Projects"),
+    [projectOptions]
+  );
   const activeProjectRecords = areProjectsReady ? projectRecords : [];
   const activeTestCaseRecords = areProjectsReady
     ? testCaseRecords.filter((testCase) => activeProjectNames.has(testCase.project))
@@ -655,6 +659,25 @@ export default function DashboardPage() {
             />
           ))}
         </div>
+      ) : null}
+      {projectTickerNames.length > 0 ? (
+        <section className="dashboard-project-ticker" aria-label="All active project names">
+          <span className="project-ticker-label">Running Projects</span>
+          <div className="project-ticker-window">
+            <div className="project-ticker-track">
+              <div className="project-ticker-group">
+                {projectTickerNames.map((projectName, index) => (
+                  <span key={`project-ticker-${projectName}-${index}`}>{projectName}</span>
+                ))}
+              </div>
+              <div className="project-ticker-group" aria-hidden="true">
+                {projectTickerNames.map((projectName, index) => (
+                  <span key={`project-ticker-repeat-${projectName}-${index}`}>{projectName}</span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
       ) : null}
       <section className="dashboard-hero">
         <div className="dashboard-welcome">

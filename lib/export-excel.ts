@@ -132,6 +132,7 @@ function createZip(entries: ZipEntry[]) {
 
 function escapeXml(value: ExcelCell) {
   return String(value ?? "")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -169,9 +170,31 @@ function buildColumnWidths(headers: string[], rows: ExcelCell[][]) {
   });
 }
 
+function getCellText(value: ExcelCell) {
+  return String(value ?? "").replace(/\*\*([^*]+)\*\*/g, "$1");
+}
+
+function estimateCellLineCount(value: ExcelCell, columnWidth: number) {
+  return getCellText(value)
+    .split(/\r?\n/)
+    .reduce<number>(
+      (lineCount, line) => lineCount + Math.max(1, Math.ceil(line.length / Math.max(12, columnWidth - 2))),
+      0
+    );
+}
+
+function getRowHeight(row: ExcelCell[], columnWidths: number[]) {
+  const lineCount = row.reduce<number>(
+    (maximum, cell, columnIndex) => Math.max(maximum, estimateCellLineCount(cell, columnWidths[columnIndex] ?? 14)),
+    1
+  );
+
+  return Math.min(150, Math.max(22, lineCount * 17));
+}
+
 function buildCell(cell: ExcelCell, rowIndex: number, columnIndex: number, isHeader: boolean) {
   const ref = `${getColumnName(columnIndex)}${rowIndex}`;
-  const style = isHeader ? ' s="1"' : "";
+  const style = isHeader ? ' s="1"' : ' s="2"';
 
   if (typeof cell === "number" && Number.isFinite(cell)) {
     return `<c r="${ref}"${style}><v>${cell}</v></c>`;
@@ -182,15 +205,18 @@ function buildCell(cell: ExcelCell, rowIndex: number, columnIndex: number, isHea
 
 function buildWorksheet(sheetName: string, headers: string[], rows: ExcelCell[][]) {
   const allRows = [headers, ...rows];
-  const columnWidths = buildColumnWidths(headers, rows)
+  const columnWidthValues = buildColumnWidths(headers, rows);
+  const columnWidths = columnWidthValues
     .map((width, index) => `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`)
     .join("");
   const sheetRows = allRows
     .map((row, rowIndex) => {
       const rowNumber = rowIndex + 1;
       const cells = headers.map((_, columnIndex) => buildCell(row[columnIndex], rowNumber, columnIndex, rowIndex === 0)).join("");
+      const height = rowIndex === 0 ? 24 : getRowHeight(row, columnWidthValues);
+      const rowStyle = ` ht="${height}" customHeight="1"`;
 
-      return `<row r="${rowNumber}">${cells}</row>`;
+      return `<row r="${rowNumber}"${rowStyle}>${cells}</row>`;
     })
     .join("");
   const lastCell = `${getColumnName(Math.max(headers.length - 1, 0))}${Math.max(allRows.length, 1)}`;
@@ -235,9 +261,14 @@ function buildStyles() {
     </border>
   </borders>
   <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-  <cellXfs count="2">
+  <cellXfs count="3">
     <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0"/>
-    <xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>
+    <xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1">
+      <alignment horizontal="left" vertical="center" wrapText="1"/>
+    </xf>
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1">
+      <alignment horizontal="left" vertical="top" wrapText="1"/>
+    </xf>
   </cellXfs>
 </styleSheet>`;
 }
