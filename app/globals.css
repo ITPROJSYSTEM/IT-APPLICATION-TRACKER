@@ -1343,6 +1343,51 @@ td:first-child {
   white-space: nowrap;
 }
 
+.inline-remarks-cell {
+  min-width: 320px;
+}
+
+.inline-remarks-input {
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  display: block;
+  line-height: 1.45;
+  min-height: 82px;
+  outline: none;
+  overflow: hidden;
+  padding: 0;
+  resize: none;
+  scrollbar-width: none;
+  width: 100%;
+}
+
+.inline-remarks-input::-webkit-scrollbar {
+  display: none;
+}
+
+.inline-remarks-input::placeholder {
+  color: var(--muted);
+  font-style: italic;
+  opacity: 0.85;
+}
+
+.inline-remarks-input:hover {
+  color: var(--brand-strong);
+}
+
+.inline-remarks-input:focus {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: var(--brand);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 5px;
+}
+
+.inline-remarks-toggle {
+  margin-top: 4px;
+}
+
 tbody tr {
   transition: background 160ms ease;
 }

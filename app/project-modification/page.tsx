@@ -290,6 +290,26 @@ function getTestCaseRecordKey(testCase: TestCase) {
   return testCase.rowKey ?? testCase.id;
 }
 
+function fitInlineRemarksInput(textArea: HTMLTextAreaElement) {
+  textArea.style.height = "auto";
+  textArea.style.height = `${Math.max(82, textArea.scrollHeight)}px`;
+}
+
+function shouldCollapseInlineRemarks(value: string) {
+  return value.trim().length > 120 || value.split(/\r\n|\r|\n/).length > 3;
+}
+
+function getInlineRemarksRows(value: string, isExpanded: boolean) {
+  if (!isExpanded && shouldCollapseInlineRemarks(value)) {
+    return 3;
+  }
+
+  return Math.max(
+    3,
+    value.split(/\r\n|\r|\n/).reduce((rowCount, line) => rowCount + Math.max(1, Math.ceil(line.length / 44)), 0)
+  );
+}
+
 export default function ProjectModificationPage() {
   const { records, setRecords, isReady: isStorageReady } = useSyncedRecords(
     testCaseStorageKey,
@@ -311,8 +331,10 @@ export default function ProjectModificationPage() {
   const [message, setMessage] = useState("");
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
   const [previewAttachment, setPreviewAttachment] = useState<TestAttachment | null>(null);
+  const [expandedDeveloperRemarks, setExpandedDeveloperRemarks] = useState<Set<string>>(() => new Set());
   const detailsFieldRef = useRef<HTMLTextAreaElement>(null);
   const devRemarksFieldRef = useRef<HTMLTextAreaElement>(null);
+  const formPanelRef = useRef<HTMLElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   const projectOptions = useMemo(() => {
@@ -347,6 +369,16 @@ export default function ProjectModificationPage() {
     setCurrentTester(loggedInAccount);
     setFormData((current) => (current.tester ? current : { ...current, tester: loggedInAccount }));
   }, []);
+
+  useEffect(() => {
+    if (!isFormVisible || !editingId) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      formPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, [editingId, isFormVisible]);
 
   useEffect(() => {
     if (!areProjectsReady || !isStorageReady) {
@@ -524,6 +556,32 @@ export default function ProjectModificationPage() {
     setMessage("");
   }
 
+  function updateDeveloperRemarks(testCaseKey: string, value: string) {
+    setRecords((current) =>
+      current.map((testCase) =>
+        getTestCaseRecordKey(testCase) === testCaseKey ? { ...testCase, devRemarks: value } : testCase
+      )
+    );
+
+    if (editingId === testCaseKey) {
+      setFormData((current) => ({ ...current, devRemarks: value }));
+    }
+  }
+
+  function toggleDeveloperRemarks(testCaseKey: string) {
+    setExpandedDeveloperRemarks((current) => {
+      const next = new Set(current);
+
+      if (next.has(testCaseKey)) {
+        next.delete(testCaseKey);
+      } else {
+        next.add(testCaseKey);
+      }
+
+      return next;
+    });
+  }
+
   function deleteTestCase(testCaseKey: string, testCaseId: string) {
     setRecords((current) => current.filter((testCase) => getTestCaseRecordKey(testCase) !== testCaseKey));
 
@@ -673,7 +731,7 @@ export default function ProjectModificationPage() {
       </section>
 
       {isFormVisible ? (
-        <section className="panel maintenance-panel" aria-label="Project modification form">
+        <section ref={formPanelRef} id="project-modification-form" className="panel maintenance-panel" aria-label="Project modification form">
           <div className="panel-heading">
             <h2>{editingId ? "Edit Record" : "Add Record"}</h2>
             <button className="ghost-action" type="button" onClick={closeForm} aria-label="Close project modification form">
@@ -945,8 +1003,13 @@ export default function ProjectModificationPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredTestCases.map((testCase) => (
-                <tr key={getTestCaseRecordKey(testCase)}>
+              {filteredTestCases.map((testCase) => {
+                const testCaseKey = getTestCaseRecordKey(testCase);
+                const isDeveloperRemarksExpanded = expandedDeveloperRemarks.has(testCaseKey);
+                const hasCollapsibleDeveloperRemarks = shouldCollapseInlineRemarks(testCase.devRemarks);
+
+                return (
+                <tr key={testCaseKey}>
                   <td>
                     <strong>{testCase.id}</strong>
                   </td>
@@ -956,7 +1019,36 @@ export default function ProjectModificationPage() {
                   <td>
                     {renderFormattedText(testCase.module)}
                   </td>
-                  <td>{renderFormattedText(testCase.devRemarks)}</td>
+                  <td className="inline-remarks-cell">
+                    <textarea
+                      className="inline-remarks-input"
+                      key={`${testCaseKey}-${isDeveloperRemarksExpanded ? "expanded" : "collapsed"}`}
+                      defaultValue={testCase.devRemarks}
+                      onFocus={(event) => fitInlineRemarksInput(event.currentTarget)}
+                      onInput={(event) => fitInlineRemarksInput(event.currentTarget)}
+                      onBlur={(event) => updateDeveloperRemarks(testCaseKey, event.currentTarget.value)}
+                      onKeyDown={(event) => {
+                        if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+                          event.currentTarget.blur();
+                        }
+                      }}
+                      aria-label={`Developer remarks for ${testCase.id}`}
+                      autoCapitalize="off"
+                      autoCorrect="off"
+                      placeholder="Developer can add remarks directly"
+                      spellCheck={false}
+                      rows={getInlineRemarksRows(testCase.devRemarks, isDeveloperRemarksExpanded)}
+                    />
+                    {hasCollapsibleDeveloperRemarks ? (
+                      <button
+                        className="formatted-text-toggle inline-remarks-toggle"
+                        type="button"
+                        onClick={() => toggleDeveloperRemarks(testCaseKey)}
+                      >
+                        {isDeveloperRemarksExpanded ? "See less" : "See more"}
+                      </button>
+                    ) : null}
+                  </td>
                   <td>
                     <StatusPill value={testCase.status} />
                   </td>
@@ -991,7 +1083,8 @@ export default function ProjectModificationPage() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {filteredTestCases.length === 0 ? (
                 <tr>
                   <td className="empty-table-state" colSpan={8}>
