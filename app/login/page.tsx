@@ -4,12 +4,12 @@ import { useState } from "react";
 import Link from "next/link";
 import { missingSupabaseEnvVars, supabase } from "@/lib/supabase";
 import { buildUserProfile, demoUserProfile, saveCurrentUserProfile } from "@/lib/user-profile";
-import { Activity, ArrowRight, Lock, Mail, ShieldCheck, UserCircle2 } from "lucide-react";
+import { Activity, ArrowRight, Lock, Mail, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 const demoCredentials = {
   email: demoUserProfile.email,
-  password: "Admin123!"
+  password: "904265"
 };
 
 export default function LoginPage() {
@@ -53,12 +53,6 @@ export default function LoginPage() {
     );
   }
 
-  function handleDemoLogin() {
-    saveCurrentUserProfile(demoUserProfile);
-    setMessage("Demo login successful. Opening dashboard...");
-    router.push("/dashboard");
-  }
-
   return (
     <main className="login-page">
       <section className="login-card">
@@ -86,7 +80,6 @@ export default function LoginPage() {
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder={demoCredentials.email}
                 required
               />
             </span>
@@ -99,7 +92,6 @@ export default function LoginPage() {
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                placeholder={demoCredentials.password}
                 required
               />
             </span>
@@ -107,13 +99,6 @@ export default function LoginPage() {
           <button className="primary-action login-button" type="submit">
             Sign in
             <ArrowRight size={17} />
-          </button>
-          <div className="login-divider" aria-hidden="true">
-            <span>or</span>
-          </div>
-          <button className="secondary-action login-button" type="button" onClick={handleDemoLogin}>
-            <UserCircle2 size={20} />
-            Use demo account
           </button>
         </form>
         {message ? <p className="form-message">{message}</p> : null}

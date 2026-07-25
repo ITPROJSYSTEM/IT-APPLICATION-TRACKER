@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { type HTMLAttributes, type KeyboardEvent, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, type HTMLAttributes, type KeyboardEvent, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { FormattedText } from "@/components/formatted-text";
 import { StatusPill } from "@/components/status-pill";
@@ -71,6 +71,14 @@ const testCaseStatuses = {
   error: ["Failed", "Error", "Blocked"] as TestStatus[],
   passed: ["Passed", "Complete"] as TestStatus[]
 };
+const celebrationColors = ["#fb7185", "#facc15", "#4ade80", "#60a5fa", "#f472b6", "#ffffff"];
+const celebrationPieces = Array.from({ length: 34 }, (_, index) => ({
+  color: celebrationColors[index % celebrationColors.length],
+  delay: (index % 9) * 45,
+  drift: ((index % 7) - 3) * 22,
+  left: 9 + ((index * 13) % 82),
+  rotate: 180 + ((index * 31) % 280)
+}));
 
 function isProject(value: unknown): value is DashboardProject {
   if (!value || typeof value !== "object") {
@@ -195,7 +203,7 @@ function getInitials(value: string) {
 }
 
 function renderFormattedText(value: string) {
-  return <FormattedText value={value} />;
+  return <FormattedText expandable={false} value={value} />;
 }
 
 function isImageAttachment(attachment: DashboardAttachment) {
@@ -281,6 +289,7 @@ export default function DashboardPage() {
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const [currentUser, setCurrentUser] = useState(demoUserProfile);
   const [selectedProject, setSelectedProject] = useState("All Projects");
+  const [celebrationKey, setCelebrationKey] = useState(0);
   const { records: projectRecords, isReady: areProjectsReady } = useSyncedRecords(projectStorageKey, projects, isProject);
   const { records: testCaseRecords } = useSyncedRecords(testCaseStorageKey, testCases, isTestCase);
   const { records: projectModificationRecords } = useSyncedRecords(
@@ -345,6 +354,7 @@ export default function DashboardPage() {
   const monthlyTasks = monthlyTaskRecords.length;
   const todaysMeetings = todaysMeetingRecords.length;
   const passedCount = getStatusCount(filteredTestCases, testCaseStatuses.passed);
+  const launchCelebration = () => setCelebrationKey((key) => key + 1);
 
   const detailConfigs = [
     {
@@ -628,6 +638,24 @@ export default function DashboardPage() {
   return (
     <>
     <AppShell>
+      {celebrationKey > 0 ? (
+        <div className="dashboard-confetti" key={celebrationKey} aria-hidden="true">
+          {celebrationPieces.map((piece, index) => (
+            <span
+              key={`${celebrationKey}-${index}`}
+              style={
+                {
+                  "--confetti-color": piece.color,
+                  "--confetti-delay": `${piece.delay}ms`,
+                  "--confetti-drift": `${piece.drift}px`,
+                  "--confetti-left": `${piece.left}%`,
+                  "--confetti-rotate": `${piece.rotate}deg`
+                } as CSSProperties
+              }
+            />
+          ))}
+        </div>
+      ) : null}
       <section className="dashboard-hero">
         <div className="dashboard-welcome">
           <div>
@@ -729,6 +757,7 @@ export default function DashboardPage() {
               value={getStatusCount(filteredProjectModifications, projectModificationStatuses.complete)}
               icon={CheckCircle2}
               tone="green"
+              onClick={launchCelebration}
               detail={{ id: "dashboard-detail-project-modification-complete", source: "project-modification", label: "Complete", statuses: projectModificationStatuses.complete }}
             />
           </div>
@@ -777,6 +806,7 @@ export default function DashboardPage() {
               value={passedCount}
               icon={CheckCircle2}
               tone="green"
+              onClick={launchCelebration}
               detail={{ id: "dashboard-detail-test-cases-passed", source: "test-cases", label: "Passed", statuses: testCaseStatuses.passed }}
             />
           </div>
@@ -788,7 +818,7 @@ export default function DashboardPage() {
       </section>
 
       <section className="dashboard-grid enhanced-dashboard-grid">
-        <div className="panel">
+        <div className="panel dashboard-scroll-panel dashboard-pipeline-panel">
           <div className="panel-heading">
             <h2>
               <ClipboardList size={17} />
@@ -796,7 +826,7 @@ export default function DashboardPage() {
             </h2>
             <span>{filteredProjects.length} tracked</span>
           </div>
-          <div className="table-wrap">
+          <div className="table-wrap dashboard-panel-scroll dashboard-pipeline-scroll">
             <table>
               <thead>
                 <tr>
@@ -841,7 +871,7 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        <div className="panel">
+        <div className="panel dashboard-scroll-panel dashboard-test-runs-panel">
           <div className="panel-heading">
             <h2>
               <CheckCircle2 size={17} />
@@ -849,12 +879,12 @@ export default function DashboardPage() {
             </h2>
             <span>{filteredTestCases.length} cases</span>
           </div>
-          <div className="activity-list">
-            {filteredTestCases.slice(0, 5).map((testCase) => (
-              <article className="activity-item" key={testCase.id}>
-                <div>
+          <div className="activity-list dashboard-panel-scroll dashboard-test-runs-scroll">
+            {filteredTestCases.map((testCase) => (
+              <article className="activity-item dashboard-test-run-item" key={testCase.rowKey ?? testCase.id}>
+                <div className="dashboard-test-run-copy">
                   <strong>
-                    <FormattedText value={testCase.module} />
+                    <FormattedText expandable={false} value={testCase.module} />
                   </strong>
                   <small>
                     {testCase.project} • {formatDateForDisplay(testCase.lastRun)}

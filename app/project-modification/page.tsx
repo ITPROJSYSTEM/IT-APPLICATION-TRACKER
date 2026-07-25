@@ -7,11 +7,13 @@ import { StatusPill } from "@/components/status-pill";
 import { projects, testCases } from "@/lib/data";
 import { exportRowsToExcel } from "@/lib/export-excel";
 import { formatDateForDisplay } from "@/lib/format";
+import { readRowsFromExcel, readSheetNamesFromExcel, type ExcelSheetOption } from "@/lib/import-excel";
+import { importTestCaseRows } from "@/lib/import-records";
 import { sortRecordsById } from "@/lib/record-sort";
 import { useSyncedRecords } from "@/lib/shared-records";
 import type { TestAttachment, TestCase, TestStatus } from "@/lib/types";
 import { readCurrentUserProfile } from "@/lib/user-profile";
-import { Bold, Edit3, FileSpreadsheet, Paperclip, Plus, Save, Trash2, X } from "lucide-react";
+import { Bold, Edit3, FileSpreadsheet, Paperclip, Plus, Save, Trash2, Upload, X } from "lucide-react";
 
 const testStatuses: TestStatus[] = ["To Do", "Complete", "In Progress", "For Review"];
 const knownTestStatuses: TestStatus[] = [
@@ -36,6 +38,12 @@ type ProjectOptionRecord = {
   name: string;
 };
 
+type PendingImport = {
+  file: File;
+  selectedSheetName: string;
+  sheets: ExcelSheetOption[];
+};
+
 const emptyTestCase: TestCase = {
   id: "",
   project: "",
@@ -44,7 +52,7 @@ const emptyTestCase: TestCase = {
   testerRemarks: "",
   devRemarks: "",
   status: "To Do",
-  lastRun: "Pending",
+  lastRun: "",
   attachment: null,
   defects: 0
 };
@@ -117,6 +125,7 @@ function isStoredTestCase(value: unknown): value is TestCase {
 
   return (
     typeof testCase.id === "string" &&
+    (testCase.rowKey === undefined || typeof testCase.rowKey === "string") &&
     typeof testCase.project === "string" &&
     typeof testCase.module === "string" &&
     typeof testCase.tester === "string" &&
@@ -143,6 +152,24 @@ function normalizeProjectModificationStatus(status: TestStatus): TestStatus {
   }
 
   return status;
+}
+
+function normalizeImportedProjectModificationStatus(status: string): TestStatus {
+  const normalizedStatus = status.trim().toLowerCase();
+
+  if (normalizedStatus === "complete" || normalizedStatus === "completed" || normalizedStatus === "passed") {
+    return "Complete";
+  }
+
+  if (normalizedStatus === "in progress" || normalizedStatus === "failed" || normalizedStatus === "error" || normalizedStatus === "blocked") {
+    return "In Progress";
+  }
+
+  if (normalizedStatus === "for review" || normalizedStatus === "review") {
+    return "For Review";
+  }
+
+  return "To Do";
 }
 
 const initialProjectModificationRecords = testCases.map((testCase) => ({
@@ -259,6 +286,10 @@ function renderFormattedText(value: string) {
   return <FormattedText value={value} />;
 }
 
+function getTestCaseRecordKey(testCase: TestCase) {
+  return testCase.rowKey ?? testCase.id;
+}
+
 export default function ProjectModificationPage() {
   const { records, setRecords, isReady: isStorageReady } = useSyncedRecords(
     testCaseStorageKey,
@@ -278,9 +309,11 @@ export default function ProjectModificationPage() {
   const [statusFilter, setStatusFilter] = useState<TestStatus | "All">("All");
   const [currentTester, setCurrentTester] = useState("");
   const [message, setMessage] = useState("");
+  const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
   const [previewAttachment, setPreviewAttachment] = useState<TestAttachment | null>(null);
   const detailsFieldRef = useRef<HTMLTextAreaElement>(null);
   const devRemarksFieldRef = useRef<HTMLTextAreaElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const projectOptions = useMemo(() => {
     if (!areProjectsReady) {
@@ -384,7 +417,7 @@ export default function ProjectModificationPage() {
 
       if (editingId) {
         const nextRecords = records.map((testCase) =>
-          testCase.id === editingId ? { ...testCase, attachment } : testCase
+          getTestCaseRecordKey(testCase) === editingId ? { ...testCase, attachment } : testCase
         );
         const wasSaved = persistRecordsImmediately(nextRecords);
         setMessage(wasSaved ? `${attachment.name} attached and saved.` : "Attachment added, but browser storage is full.");
@@ -402,7 +435,7 @@ export default function ProjectModificationPage() {
 
     if (editingId) {
       const nextRecords = records.map((testCase) =>
-        testCase.id === editingId ? { ...testCase, attachment: null } : testCase
+        getTestCaseRecordKey(testCase) === editingId ? { ...testCase, attachment: null } : testCase
       );
       const wasSaved = persistRecordsImmediately(nextRecords);
       setMessage(wasSaved ? "Attachment removed and saved." : "Attachment removed, but browser storage is full.");
@@ -444,13 +477,14 @@ export default function ProjectModificationPage() {
 
     const nextTestCase: TestCase = {
       id: editingId ? formData.id : generateTestCaseId(activeRecords, formData.project.trim()),
+      rowKey: formData.rowKey,
       project: formData.project.trim(),
       module: formData.module,
       tester: currentTester || formData.tester.trim(),
       testerRemarks: formData.testerRemarks,
       devRemarks: formData.devRemarks,
       status: formData.status,
-      lastRun: formData.lastRun.trim() || "Pending",
+      lastRun: formData.lastRun.trim(),
       attachment: formData.attachment ?? null,
       defects: formData.defects
     };
@@ -470,7 +504,9 @@ export default function ProjectModificationPage() {
     }
 
     if (editingId) {
-      setRecords((current) => current.map((testCase) => (testCase.id === editingId ? nextTestCase : testCase)));
+      setRecords((current) =>
+        current.map((testCase) => (getTestCaseRecordKey(testCase) === editingId ? nextTestCase : testCase))
+      );
       setMessage(`${nextTestCase.id} updated.`);
     } else {
       setRecords((current) => sortRecordsById([...current, nextTestCase]));
@@ -483,15 +519,15 @@ export default function ProjectModificationPage() {
 
   function editTestCase(testCase: TestCase) {
     setFormData(testCase);
-    setEditingId(testCase.id);
+    setEditingId(getTestCaseRecordKey(testCase));
     setIsFormVisible(true);
     setMessage("");
   }
 
-  function deleteTestCase(testCaseId: string) {
-    setRecords((current) => current.filter((testCase) => testCase.id !== testCaseId));
+  function deleteTestCase(testCaseKey: string, testCaseId: string) {
+    setRecords((current) => current.filter((testCase) => getTestCaseRecordKey(testCase) !== testCaseKey));
 
-    if (editingId === testCaseId) {
+    if (editingId === testCaseKey) {
       setFormData(emptyTestCase);
       setEditingId(null);
       setMessage("");
@@ -536,6 +572,91 @@ export default function ProjectModificationPage() {
         testCase.attachment?.name ?? "No attachment"
       ])
     });
+  }
+
+  function openImportPicker() {
+    importInputRef.current?.click();
+  }
+
+  function getDefaultImportSheetName(sheets: ExcelSheetOption[]) {
+    return (
+      sheets.find((sheet) => sheet.name.trim().toLowerCase() === "project modification")?.name ??
+      sheets[0]?.name ??
+      ""
+    );
+  }
+
+  async function applyProjectModificationImport(file: File, selectedSheetName?: string) {
+    if (!areProjectsReady || !isStorageReady) {
+      setMessage("Wait for the tracker data to finish loading before importing.");
+      return;
+    }
+
+    setMessage(selectedSheetName ? `Importing ${selectedSheetName}...` : "Importing Excel file...");
+
+    try {
+      const rows = await readRowsFromExcel(file, selectedSheetName);
+      const { records: importedRecords, summary } = importTestCaseRows({
+        activeProjectNames,
+        currentTester,
+        dateAliases: ["date modified", "modified date", "last run"],
+        defaultStatus: "To Do",
+        generateId: generateTestCaseId,
+        idAliases: ["record id", "record", "id"],
+        normalizeStatus: normalizeImportedProjectModificationStatus,
+        records,
+        requireTesterRemarks: false,
+        rows
+      });
+
+      if (summary.added + summary.updated === 0) {
+        setMessage("No rows imported. Check the required columns: Project Name and Details.");
+        return;
+      }
+
+      setRecords(importedRecords);
+      setPendingImport(null);
+      setIsFormVisible(false);
+      setEditingId(null);
+      setMessage(`Imported ${summary.added} new and updated ${summary.updated}. Skipped ${summary.skipped}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to import this Excel file.");
+    }
+  }
+
+  async function importProjectModificationFromExcel(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    if (!areProjectsReady || !isStorageReady) {
+      setMessage("Wait for the tracker data to finish loading before importing.");
+      return;
+    }
+
+    setMessage("Reading Excel sheets...");
+
+    try {
+      const sheets = await readSheetNamesFromExcel(file);
+
+      if (sheets.length > 1) {
+        setPendingImport({
+          file,
+          selectedSheetName: getDefaultImportSheetName(sheets),
+          sheets
+        });
+        setMessage("Choose the worksheet tab to import.");
+        return;
+      }
+
+      await applyProjectModificationImport(file, sheets[0]?.name);
+    } catch (error) {
+      setPendingImport(null);
+      setMessage(error instanceof Error ? error.message : "Unable to read this Excel file.");
+    }
   }
 
   return (
@@ -726,7 +847,55 @@ export default function ProjectModificationPage() {
           <FileSpreadsheet size={17} />
           Export Excel
         </button>
+        <button
+          className="secondary-action"
+          type="button"
+          onClick={openImportPicker}
+          disabled={!areProjectsReady || !isStorageReady}
+        >
+          <Upload size={17} />
+          Import Excel
+        </button>
+        <input
+          ref={importInputRef}
+          type="file"
+          accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+          hidden
+          onChange={importProjectModificationFromExcel}
+        />
       </section>
+      {pendingImport ? (
+        <section className="panel sheet-import-panel" aria-label="Choose worksheet to import">
+          <label>
+            Worksheet
+            <select
+              value={pendingImport.selectedSheetName}
+              onChange={(event) =>
+                setPendingImport((current) =>
+                  current ? { ...current, selectedSheetName: event.target.value } : current
+                )
+              }
+            >
+              {pendingImport.sheets.map((sheet) => (
+                <option key={sheet.name} value={sheet.name}>
+                  {sheet.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            className="primary-action"
+            type="button"
+            onClick={() => applyProjectModificationImport(pendingImport.file, pendingImport.selectedSheetName)}
+          >
+            <Upload size={17} />
+            Import Sheet
+          </button>
+          <button className="secondary-action" type="button" onClick={() => setPendingImport(null)}>
+            Cancel
+          </button>
+        </section>
+      ) : null}
       {!isFormVisible && message ? <p className="inline-message toolbar-message">{message}</p> : null}
 
       {previewAttachment ? (
@@ -777,7 +946,7 @@ export default function ProjectModificationPage() {
             </thead>
             <tbody>
               {filteredTestCases.map((testCase) => (
-                <tr key={testCase.id}>
+                <tr key={getTestCaseRecordKey(testCase)}>
                   <td>
                     <strong>{testCase.id}</strong>
                   </td>
@@ -814,7 +983,7 @@ export default function ProjectModificationPage() {
                       <button
                         className="icon-action danger-action"
                         type="button"
-                        onClick={() => deleteTestCase(testCase.id)}
+                        onClick={() => deleteTestCase(getTestCaseRecordKey(testCase), testCase.id)}
                         aria-label={`Delete ${testCase.id}`}
                       >
                         <Trash2 size={16} />

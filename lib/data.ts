@@ -101,7 +101,7 @@ export const testCases: TestCase[] = [
     testerRemarks: "Awaiting test data from Finance.",
     devRemarks: "Notification timer build is available in dev.",
     status: "Not Started",
-    lastRun: "Pending",
+    lastRun: "",
     defects: 0
   },
   {

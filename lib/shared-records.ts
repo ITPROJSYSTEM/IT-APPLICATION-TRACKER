@@ -1,9 +1,10 @@
 "use client";
 
-import { Dispatch, SetStateAction, useEffect, useRef, useState } from "react";
+import { Dispatch, SetStateAction, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 const sharedDataTable = "app_data";
+const useBrowserLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 type AppDataRow = {
   data_key: string;
@@ -43,6 +44,14 @@ function parseRecords<TRecord>(
 
 function recordsMatch<TRecord>(firstRecords: TRecord[], secondRecords: TRecord[]) {
   return JSON.stringify(firstRecords) === JSON.stringify(secondRecords);
+}
+
+function getBrowserStorage() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return window.localStorage;
 }
 
 function parseLocalSnapshot<TRecord>(
@@ -85,7 +94,18 @@ function readLocalSnapshot<TRecord>(
   validator: (value: unknown) => value is TRecord,
   fallback: TRecord[]
 ): LocalRecordSnapshot<TRecord> {
-  const savedRecords = localStorage.getItem(storageKey);
+  const storage = getBrowserStorage();
+
+  if (!storage) {
+    return {
+      exists: false,
+      isLegacy: false,
+      records: fallback,
+      updatedAt: null
+    };
+  }
+
+  const savedRecords = storage.getItem(storageKey);
 
   if (!savedRecords) {
     return {
@@ -100,7 +120,7 @@ function readLocalSnapshot<TRecord>(
     const parsedRecords: unknown = JSON.parse(savedRecords);
     return parseLocalSnapshot(parsedRecords, validator, fallback);
   } catch {
-    localStorage.removeItem(storageKey);
+    storage.removeItem(storageKey);
     return {
       exists: false,
       isLegacy: false,
@@ -111,7 +131,13 @@ function readLocalSnapshot<TRecord>(
 }
 
 function writeLocalSnapshot<TRecord>(storageKey: string, records: TRecord[], updatedAt: string) {
-  localStorage.setItem(storageKey, JSON.stringify({ records, updatedAt }));
+  const storage = getBrowserStorage();
+
+  if (!storage) {
+    return;
+  }
+
+  storage.setItem(storageKey, JSON.stringify({ records, updatedAt }));
 }
 
 async function saveSharedRecords<TRecord>(storageKey: string, records: TRecord[], updatedAt = new Date().toISOString()) {
@@ -200,6 +226,16 @@ export function useSyncedRecords<TRecord>(
   const [records, setRecords] = useState<TRecord[]>(fallback);
   const [isReady, setIsReady] = useState(false);
   const skipNextRemoteSave = useRef(false);
+
+  useBrowserLayoutEffect(() => {
+    const localSnapshot = readLocalSnapshot(storageKey, validator, fallback);
+
+    skipNextRemoteSave.current = true;
+    setRecords((currentRecords) =>
+      recordsMatch(currentRecords, localSnapshot.records) ? currentRecords : localSnapshot.records
+    );
+    setIsReady(true);
+  }, [fallback, storageKey, validator]);
 
   useEffect(() => {
     let isActive = true;

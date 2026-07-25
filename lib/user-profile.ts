@@ -8,7 +8,7 @@ export type CurrentUserProfile = {
 export const currentUserStorageKey = "it-application-tracker-current-user";
 
 export const demoUserProfile: CurrentUserProfile = {
-  email: "admin@tracker.local",
+  email: "ada@tracler.com",
   fullName: "Jessica Maica Libre",
   position: "Project Coordinator",
   avatarUrl: ""
@@ -43,8 +43,13 @@ export function formatUserName(value: string | null | undefined) {
 
 export function buildUserProfile(email: string | null | undefined, metadata?: Record<string, unknown>): CurrentUserProfile {
   const userEmail = email?.trim() || demoUserProfile.email;
-  const fullName = getMetadataString(metadata, ["full_name", "fullName", "name", "display_name"]) || formatUserName(userEmail);
-  const position = getMetadataString(metadata, ["position", "job_title", "jobTitle", "title", "role"]) || demoUserProfile.position;
+  const isDemoAccount = userEmail.toLowerCase() === demoUserProfile.email.toLowerCase();
+  const fullName = isDemoAccount
+    ? demoUserProfile.fullName
+    : getMetadataString(metadata, ["full_name", "fullName", "name", "display_name"]) || formatUserName(userEmail);
+  const position = isDemoAccount
+    ? demoUserProfile.position
+    : getMetadataString(metadata, ["position", "job_title", "jobTitle", "title", "role"]) || demoUserProfile.position;
   const avatarUrl = getMetadataString(metadata, ["avatar_url", "avatarUrl", "picture", "photo_url", "photoUrl", "image"]);
 
   return {

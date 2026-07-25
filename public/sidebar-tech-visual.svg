@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 250" role="img" aria-label="Technology innovation illustration">
+  <defs>
+    <radialGradient id="bg" cx="58%" cy="24%" r="88%">
+      <stop offset="0" stop-color="#9f1239" stop-opacity=".54"/>
+      <stop offset=".5" stop-color="#4c0519" stop-opacity=".78"/>
+      <stop offset="1" stop-color="#120613"/>
+    </radialGradient>
+    <linearGradient id="rose" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#fb7185"/>
+      <stop offset=".55" stop-color="#db2777"/>
+      <stop offset="1" stop-color="#831843"/>
+    </linearGradient>
+    <linearGradient id="surface" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#641833"/>
+      <stop offset="1" stop-color="#180414"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 1 0 0 0 0 .25 0 0 0 0 .54 0 0 0 .7 0"/>
+      <feBlend in="SourceGraphic"/>
+    </filter>
+    <filter id="shadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="10" stdDeviation="8" flood-color="#000000" flood-opacity=".45"/>
+    </filter>
+  </defs>
+  <rect width="420" height="250" rx="14" fill="url(#bg)"/>
+  <g opacity=".22" stroke="#fb7185" stroke-width="1" fill="none">
+    <path d="M18 199h55l18 15h52M18 218h98l14 12h58M42 184h54l16 12h42"/>
+    <path d="M260 18v43l14 16v40M292 6v44l17 17v42M326 18v35l18 18v40"/>
+  </g>
+  <g filter="url(#glow)">
+    <circle cx="170" cy="46" r="3" fill="#fda4af"/>
+    <circle cx="218" cy="32" r="2.5" fill="#fb7185"/>
+    <circle cx="250" cy="78" r="2.8" fill="#f9a8d4"/>
+  </g>
+  <g filter="url(#shadow)">
+    <g transform="translate(155 114)">
+      <path d="M0 28 70 0l70 28v76L70 136 0 104z" fill="#210614" stroke="#fb7185" stroke-opacity=".48" stroke-width="2"/>
+      <path d="m0 58 70 29 70-29M0 88l70 29 70-29" stroke="#fb7185" stroke-opacity=".5" stroke-width="2"/>
+      <ellipse cx="70" cy="28" rx="70" ry="28" fill="#831843" opacity=".6"/>
+      <ellipse cx="70" cy="28" rx="40" ry="13" fill="#f472b6" opacity=".25"/>
+    </g>
+    <g transform="translate(268 78)">
+      <path d="M0 38c0-20 16-36 36-36 14 0 27 8 33 20 6-4 13-6 21-6 22 0 40 18 40 40v4c16 4 28 18 28 35 0 20-16 36-36 36H32C14 131 0 117 0 99c0-14 8-26 21-32A36 36 0 0 1 0 38z" fill="url(#rose)"/>
+      <path d="M78 104V48M78 48 58 68M78 48l20 20" fill="none" stroke="#ffe4e6" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+    <g transform="translate(262 159)">
+      <path d="M0 0h122c8 0 14 6 14 14v64H0z" fill="#130817" stroke="#fb7185" stroke-opacity=".52" stroke-width="2"/>
+      <rect x="13" y="14" width="96" height="45" rx="4" fill="#0f111f"/>
+      <g stroke="#fb7185" stroke-linecap="round" stroke-width="3">
+        <path d="M27 26h34M27 39h56M27 52h42"/>
+      </g>
+      <path d="m98 30-12 12 12 12M118 30l12 12-12 12" fill="none" stroke="#f9a8d4" stroke-linecap="round" stroke-linejoin="round" stroke-width="4"/>
+    </g>
+  </g>
+</svg>

@@ -29,6 +29,7 @@ export type Project = {
 
 export type TestCase = {
   id: string;
+  rowKey?: string;
   project: string;
   module: string;
   tester: string;

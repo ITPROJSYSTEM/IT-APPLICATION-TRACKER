@@ -247,7 +247,7 @@ export default function TaskCalendarActivitiesPage() {
                         <span className="calendar-activity-item" key={activity.id}>
                           <CalendarDays size={12} />
                           <span>
-                            <FormattedText value={activity.details} />
+                            <FormattedText expandable={false} value={activity.details} />
                           </span>
                         </span>
                       ))}
