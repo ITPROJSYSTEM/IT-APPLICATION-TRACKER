@@ -1,9 +1,10 @@
 "use client";
 
-import { Dispatch, SetStateAction, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Dispatch, SetStateAction, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 const sharedDataTable = "app_data";
+const backupStorageKeyPart = ":backup:";
 const useBrowserLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 type AppDataRow = {
@@ -134,10 +135,49 @@ function writeLocalSnapshot<TRecord>(storageKey: string, records: TRecord[], upd
   const storage = getBrowserStorage();
 
   if (!storage) {
+    return false;
+  }
+
+  try {
+    storage.setItem(storageKey, JSON.stringify({ records, updatedAt }));
+    return true;
+  } catch (error) {
+    console.warn(`Unable to save ${storageKey} in browser storage.`, error);
+    return false;
+  }
+}
+
+function getBackupStorageKey(storageKey: string, updatedAt: string | null) {
+  const backupDate = updatedAt ?? new Date().toISOString();
+
+  return `${storageKey}${backupStorageKeyPart}${backupDate}`;
+}
+
+async function backupRemoteRecordsBeforeEmptySave(storageKey: string) {
+  if (!supabase) {
     return;
   }
 
-  storage.setItem(storageKey, JSON.stringify({ records, updatedAt }));
+  const { data, error } = await supabase
+    .from(sharedDataTable)
+    .select("data, updated_at")
+    .eq("data_key", storageKey)
+    .maybeSingle<AppDataRow>();
+
+  if (error || !data || !Array.isArray(data.data) || data.data.length === 0) {
+    return;
+  }
+
+  const backupUpdatedAt = data.updated_at ?? new Date().toISOString();
+  const { error: backupError } = await supabase.from(sharedDataTable).upsert({
+    data_key: getBackupStorageKey(storageKey, backupUpdatedAt),
+    data: data.data,
+    updated_at: backupUpdatedAt
+  });
+
+  if (backupError) {
+    console.warn(`Unable to back up ${storageKey} before empty save.`, backupError.message);
+  }
 }
 
 async function saveSharedRecords<TRecord>(storageKey: string, records: TRecord[], updatedAt = new Date().toISOString()) {
@@ -145,6 +185,10 @@ async function saveSharedRecords<TRecord>(storageKey: string, records: TRecord[]
 
   if (!supabase) {
     return;
+  }
+
+  if (records.length === 0) {
+    await backupRemoteRecordsBeforeEmptySave(storageKey);
   }
 
   const { error } = await supabase
@@ -194,16 +238,20 @@ async function loadSharedRecords<TRecord>(
   const sharedRecords = parseRecords(data.data, validator, localSnapshot.records);
   const remoteUpdatedAt = data.updated_at ?? null;
   const localHasDifferentRecords = localSnapshot.exists && !recordsMatch(localSnapshot.records, sharedRecords);
+  const localIsEmpty = localSnapshot.records.length === 0;
+  const remoteHasRecords = sharedRecords.length > 0;
   const localIsNewer =
     localSnapshot.updatedAt && remoteUpdatedAt
       ? new Date(localSnapshot.updatedAt).getTime() > new Date(remoteUpdatedAt).getTime()
       : false;
+  const shouldProtectRemoteRecords = localIsEmpty && remoteHasRecords;
   const localLooksUserEdited =
     localSnapshot.isLegacy &&
     localHasDifferentRecords &&
+    !localIsEmpty &&
     !recordsMatch(localSnapshot.records, fallback);
 
-  if (localHasDifferentRecords && (localIsNewer || localLooksUserEdited)) {
+  if (localHasDifferentRecords && !shouldProtectRemoteRecords && (localIsNewer || localLooksUserEdited)) {
     await saveSharedRecords(storageKey, localSnapshot.records, localSnapshot.updatedAt ?? undefined);
     return { records: localSnapshot.records, shouldSkipSave: true };
   }
@@ -226,6 +274,22 @@ export function useSyncedRecords<TRecord>(
   const [records, setRecords] = useState<TRecord[]>(fallback);
   const [isReady, setIsReady] = useState(false);
   const skipNextRemoteSave = useRef(false);
+
+  const updateSyncedRecords = useCallback<Dispatch<SetStateAction<TRecord[]>>>(
+    (nextRecordsOrUpdater) => {
+      setRecords((currentRecords) => {
+        const nextRecords =
+          typeof nextRecordsOrUpdater === "function"
+            ? (nextRecordsOrUpdater as (currentRecords: TRecord[]) => TRecord[])(currentRecords)
+            : nextRecordsOrUpdater;
+
+        skipNextRemoteSave.current = false;
+        writeLocalSnapshot(storageKey, nextRecords, new Date().toISOString());
+        return nextRecords;
+      });
+    },
+    [storageKey]
+  );
 
   useBrowserLayoutEffect(() => {
     const localSnapshot = readLocalSnapshot(storageKey, validator, fallback);
@@ -309,5 +373,5 @@ export function useSyncedRecords<TRecord>(
     void saveSharedRecords(storageKey, records);
   }, [isReady, records, storageKey]);
 
-  return { records, setRecords, isReady };
+  return { records, setRecords: updateSyncedRecords, isReady };
 }

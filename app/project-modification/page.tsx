@@ -346,21 +346,29 @@ export default function ProjectModificationPage() {
   const importInputRef = useRef<HTMLInputElement>(null);
 
   const projectOptions = useMemo(() => {
-    if (!areProjectsReady) {
+    if (!areProjectsReady && !isStorageReady) {
       return [];
     }
 
-    const projectNames = projectOptionRecords.map((project) => project.name.trim()).filter(Boolean);
+    const projectNames = [
+      ...(areProjectsReady ? projectOptionRecords.map((project) => project.name.trim()) : []),
+      ...(isStorageReady ? records.map((testCase) => testCase.project.trim()) : [])
+    ].filter(Boolean);
+
     return Array.from(new Set(projectNames));
-  }, [areProjectsReady, projectOptionRecords]);
+  }, [areProjectsReady, isStorageReady, projectOptionRecords, records]);
+  const maintenanceProjectNames = useMemo(
+    () => new Set(projectOptionRecords.map((project) => project.name.trim()).filter(Boolean)),
+    [projectOptionRecords]
+  );
   const activeProjectNames = useMemo(() => new Set(projectOptions), [projectOptions]);
   const activeRecords = useMemo(() => {
-    if (!areProjectsReady) {
+    if (!isStorageReady) {
       return [];
     }
 
-    return records.filter((testCase) => activeProjectNames.has(testCase.project));
-  }, [activeProjectNames, areProjectsReady, records]);
+    return records;
+  }, [isStorageReady, records]);
   const displayedTestCaseId = editingId ? formData.id : generateTestCaseId(activeRecords, formData.project);
 
   function getFilteredProjectTestCase() {
@@ -387,18 +395,6 @@ export default function ProjectModificationPage() {
       formPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   }, [editingId, isFormVisible]);
-
-  useEffect(() => {
-    if (!areProjectsReady || !isStorageReady) {
-      return;
-    }
-
-    const nextRecords = records.filter((testCase) => activeProjectNames.has(testCase.project));
-
-    if (nextRecords.length !== records.length) {
-      setRecords(nextRecords);
-    }
-  }, [activeProjectNames, areProjectsReady, isStorageReady, records, setRecords]);
 
   useEffect(() => {
     if (projectFilter !== "All" && !activeProjectNames.has(projectFilter)) {
@@ -538,7 +534,7 @@ export default function ProjectModificationPage() {
       return;
     }
 
-    if (!activeProjectNames.has(nextTestCase.project)) {
+    if (!areProjectsReady || !maintenanceProjectNames.has(nextTestCase.project)) {
       setMessage("Select an active project from Project Maintenance before saving.");
       return;
     }
@@ -663,7 +659,7 @@ export default function ProjectModificationPage() {
     try {
       const rows = await readRowsFromExcel(file, selectedSheetName);
       const { records: importedRecords, summary } = importTestCaseRows({
-        activeProjectNames,
+        activeProjectNames: maintenanceProjectNames,
         currentTester,
         dateAliases: ["date modified", "modified date", "last run"],
         defaultStatus: "To Do",
