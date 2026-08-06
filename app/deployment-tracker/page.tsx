@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
+import { projects } from "@/lib/data";
 import { exportRowsToExcel } from "@/lib/export-excel";
 import { sortRecordsById } from "@/lib/record-sort";
 import { useSyncedRecords } from "@/lib/shared-records";
@@ -13,6 +14,7 @@ type DeploymentStatus = "Scheduled" | "Ready" | "Deploying" | "Successful" | "Fa
 type DeploymentRecord = {
   id: string;
   project: string;
+  description: string;
   environment: DeploymentEnvironment;
   version: string;
   scheduledAt: string;
@@ -20,6 +22,11 @@ type DeploymentRecord = {
   status: DeploymentStatus;
 };
 
+type ProjectOptionRecord = {
+  name: string;
+};
+
+const projectStorageKey = "it-application-tracker-projects";
 const deploymentStorageKey = "it-application-tracker-deployments";
 const deploymentEnvironments: DeploymentEnvironment[] = ["SVRDEV", "PORTAL"];
 const deploymentStatuses: DeploymentStatus[] = [
@@ -33,12 +40,23 @@ const initialDeployments: DeploymentRecord[] = [];
 const emptyDeployment: DeploymentRecord = {
   id: "",
   project: "",
-  environment: "UAT",
+  description: "",
+  environment: "SVRDEV",
   version: "",
   scheduledAt: "",
   owner: "",
   status: "Scheduled"
 };
+
+function isProjectOptionRecord(value: unknown): value is ProjectOptionRecord {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const project = value as Partial<ProjectOptionRecord>;
+
+  return typeof project.name === "string";
+}
 
 function isDeploymentRecord(value: unknown): value is DeploymentRecord {
   if (!value || typeof value !== "object") {
@@ -85,7 +103,7 @@ function formatDeploymentSchedule(value: string) {
 
 function getDeploymentTone(status: DeploymentStatus) {
   if (status === "Successful") return "success";
-  if (status === "Failed" || status === "Rolled Back") return "danger";
+  if (status === "Failed") return "danger";
   if (status === "Deploying") return "warning";
   if (status === "Ready") return "info";
   return "neutral";
@@ -97,19 +115,43 @@ export default function DeploymentTrackerPage() {
     initialDeployments,
     isDeploymentRecord
   );
+  const { records: projectOptionRecords, isReady: areProjectsReady } = useSyncedRecords(
+    projectStorageKey,
+    projects,
+    isProjectOptionRecord
+  );
   const [formData, setFormData] = useState<DeploymentRecord>(emptyDeployment);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isFormVisible, setIsFormVisible] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [projectFilter, setProjectFilter] = useState<string | "All">("All");
   const [environmentFilter, setEnvironmentFilter] = useState<DeploymentEnvironment | "All">("All");
   const [statusFilter, setStatusFilter] = useState<DeploymentStatus | "All">("All");
   const [message, setMessage] = useState("");
+
+  const projectOptions = useMemo(() => {
+    const projectNames = [
+      ...(areProjectsReady ? projectOptionRecords.map((project) => project.name.trim()) : []),
+      ...records.map((deployment) => deployment.project.trim())
+    ].filter(Boolean);
+
+    return Array.from(new Set(projectNames));
+  }, [areProjectsReady, projectOptionRecords, records]);
+
+  const activeProjectNames = useMemo(() => new Set(projectOptions), [projectOptions]);
+
+  useEffect(() => {
+    if (projectFilter !== "All" && !activeProjectNames.has(projectFilter)) {
+      setProjectFilter("All");
+    }
+  }, [activeProjectNames, projectFilter]);
 
   const filteredDeployments = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
 
     return sortRecordsById(
       records.filter((deployment) => {
+        const matchesProject = projectFilter === "All" || deployment.project === projectFilter;
         const matchesEnvironment =
           environmentFilter === "All" || deployment.environment === environmentFilter;
         const matchesStatus = statusFilter === "All" || deployment.status === statusFilter;
@@ -125,13 +167,14 @@ export default function DeploymentTrackerPage() {
           .toLowerCase();
 
         return (
+          matchesProject &&
           matchesEnvironment &&
           matchesStatus &&
           (!normalizedSearch || searchableValue.includes(normalizedSearch))
         );
       })
     );
-  }, [environmentFilter, records, searchTerm, statusFilter]);
+  }, [environmentFilter, projectFilter, records, searchTerm, statusFilter]);
 
   const displayedDeploymentId = editingId ? formData.id : generateDeploymentId(records);
 
@@ -161,6 +204,7 @@ export default function DeploymentTrackerPage() {
 
     const nextDeployment: DeploymentRecord = {
       id: editingId ? formData.id : generateDeploymentId(records),
+      description: formData.description.trim(),
       project: formData.project.trim(),
       environment: formData.environment,
       version: formData.version.trim(),
@@ -193,6 +237,7 @@ export default function DeploymentTrackerPage() {
     setEditingId(null);
     setIsFormVisible(false);
     setSearchTerm("");
+    setProjectFilter("All");
     setEnvironmentFilter("All");
     setStatusFilter("All");
   }
@@ -263,9 +308,23 @@ export default function DeploymentTrackerPage() {
             <label>
               Project
               <input
+                list="deployment-project-options"
                 value={formData.project}
                 onChange={(event) => updateField("project", event.target.value)}
                 placeholder="Project name"
+              />
+              <datalist id="deployment-project-options">
+                {projectOptions.map((projectName) => (
+                  <option key={projectName} value={projectName} />
+                ))}
+              </datalist>
+            </label>
+            <label>
+              Description
+              <input
+                value={formData.description}
+                onChange={(event) => updateField("description", event.target.value)}
+                placeholder="Deployment description"
               />
             </label>
             <label>
@@ -293,14 +352,6 @@ export default function DeploymentTrackerPage() {
                 type="datetime-local"
                 value={formData.scheduledAt}
                 onChange={(event) => updateField("scheduledAt", event.target.value)}
-              />
-            </label>
-            <label>
-              Deployment Owner
-              <input
-                value={formData.owner}
-                onChange={(event) => updateField("owner", event.target.value)}
-                placeholder="Responsible person or team"
               />
             </label>
             <label>
@@ -334,6 +385,18 @@ export default function DeploymentTrackerPage() {
           value={searchTerm}
           onChange={(event) => setSearchTerm(event.target.value)}
         />
+        <select
+          value={projectFilter}
+          onChange={(event) => setProjectFilter(event.target.value)}
+          aria-label="Filter by project name"
+        >
+          <option value="All">All Projects</option>
+          {projectOptions.map((projectName) => (
+            <option key={projectName} value={projectName}>
+              {projectName}
+            </option>
+          ))}
+        </select>
         <select
           value={environmentFilter}
           onChange={(event) => setEnvironmentFilter(event.target.value as DeploymentEnvironment | "All")}
@@ -378,10 +441,10 @@ export default function DeploymentTrackerPage() {
               <tr>
                 <th>Deployment ID</th>
                 <th>Project</th>
+                <th>Description</th>
                 <th>Environment</th>
                 <th>Version</th>
                 <th>Scheduled</th>
-                <th>Owner</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -391,10 +454,11 @@ export default function DeploymentTrackerPage() {
                 <tr key={deployment.id}>
                   <td><strong>{deployment.id}</strong></td>
                   <td><strong>{deployment.project}</strong></td>
+                  <td>{deployment.description  ?? 'No description provided'}</td>
                   <td>{deployment.environment}</td>
                   <td>{deployment.version}</td>
                   <td className="date-cell">{formatDeploymentSchedule(deployment.scheduledAt)}</td>
-                  <td>{deployment.owner}</td>
+
                   <td>
                     <span className={`status-pill ${getDeploymentTone(deployment.status)}`}>
                       {deployment.status}
