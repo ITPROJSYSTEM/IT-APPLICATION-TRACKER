@@ -8,7 +8,7 @@ import { useSyncedRecords } from "@/lib/shared-records";
 import { Edit3, FileSpreadsheet, Plus, Rocket, Save, Trash2, X } from "lucide-react";
 
 type DeploymentEnvironment = "SVRDEV" | "PORTAL";
-type DeploymentStatus = "Scheduled" | "Ready" | "Deploying" | "Successful" | "Failed" | "Rolled Back";
+type DeploymentStatus = "Scheduled" | "Ready" | "Deploying" | "Successful" | "Failed";
 
 type DeploymentRecord = {
   id: string;
@@ -28,7 +28,6 @@ const deploymentStatuses: DeploymentStatus[] = [
   "Deploying",
   "Successful",
   "Failed",
-  "Rolled Back"
 ];
 const initialDeployments: DeploymentRecord[] = [];
 const emptyDeployment: DeploymentRecord = {
