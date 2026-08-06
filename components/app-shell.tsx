@@ -15,6 +15,7 @@ import {
   LayoutDashboard,
   LogOut,
   Moon,
+  NotebookText,
   Rocket,
   Sun,
   Wrench
@@ -26,7 +27,8 @@ const navItems = [
   { href: "/project-modification", label: "Project Modification", icon: Wrench },
   { href: "/test-cases", label: "Test Case Management", icon: ClipboardCheck },
   { href: "/projects", label: "Project Maintenance", icon: FolderKanban },
-  { href: "/deployment-tracker", label: "Deployment Tracker", icon: Rocket }
+  { href: "/deployment-tracker", label: "Deployment Tracker", icon: Rocket },
+  { href: "/notes", label: "Notes", icon: NotebookText }
 ];
 const themeStorageKey = "it-application-tracker-theme";
 const themes = [

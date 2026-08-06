@@ -9,12 +9,19 @@ import { useSyncedRecords } from "@/lib/shared-records";
 import { Edit3, FileSpreadsheet, Plus, Rocket, Save, Trash2, X } from "lucide-react";
 
 type DeploymentEnvironment = "SVRDEV" | "PORTAL";
-type DeploymentStatus = "Scheduled" | "Ready" | "Deploying" | "Successful" | "Failed";
+type DeploymentStatus =
+  | "Scheduled"
+  | "Ready"
+  | "Deploying"
+  | "Currently in SVRDEV"
+  | "Already up on the portal"
+  | "Successful"
+  | "Failed";
 
 type DeploymentRecord = {
   id: string;
   project: string;
-  description: string;
+  description?: string;
   environment: DeploymentEnvironment;
   version: string;
   scheduledAt: string;
@@ -33,6 +40,8 @@ const deploymentStatuses: DeploymentStatus[] = [
   "Scheduled",
   "Ready",
   "Deploying",
+  "Currently in SVRDEV",
+  "Already up on the portal",
   "Successful",
   "Failed",
 ];
@@ -68,6 +77,7 @@ function isDeploymentRecord(value: unknown): value is DeploymentRecord {
   return (
     typeof deployment.id === "string" &&
     typeof deployment.project === "string" &&
+    (typeof deployment.description === "string" || typeof deployment.description === "undefined") &&
     deploymentEnvironments.includes(deployment.environment as DeploymentEnvironment) &&
     typeof deployment.version === "string" &&
     typeof deployment.scheduledAt === "string" &&
@@ -102,10 +112,10 @@ function formatDeploymentSchedule(value: string) {
 }
 
 function getDeploymentTone(status: DeploymentStatus) {
-  if (status === "Successful") return "success";
+  if (status === "Successful" || status === "Already up on the portal") return "success";
   if (status === "Failed") return "danger";
-  if (status === "Deploying") return "warning";
-  if (status === "Ready") return "info";
+  if (status === "Deploying" || status === "Scheduled") return "warning";
+  if (status === "Ready" || status === "Currently in SVRDEV") return "info";
   return "neutral";
 }
 
@@ -126,7 +136,6 @@ export default function DeploymentTrackerPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [projectFilter, setProjectFilter] = useState<string | "All">("All");
   const [environmentFilter, setEnvironmentFilter] = useState<DeploymentEnvironment | "All">("All");
-  const [statusFilter, setStatusFilter] = useState<DeploymentStatus | "All">("All");
   const [message, setMessage] = useState("");
 
   const projectOptions = useMemo(() => {
@@ -154,10 +163,10 @@ export default function DeploymentTrackerPage() {
         const matchesProject = projectFilter === "All" || deployment.project === projectFilter;
         const matchesEnvironment =
           environmentFilter === "All" || deployment.environment === environmentFilter;
-        const matchesStatus = statusFilter === "All" || deployment.status === statusFilter;
         const searchableValue = [
           deployment.id,
           deployment.project,
+          deployment.description ?? "",
           deployment.environment,
           deployment.version,
           deployment.owner,
@@ -169,14 +178,20 @@ export default function DeploymentTrackerPage() {
         return (
           matchesProject &&
           matchesEnvironment &&
-          matchesStatus &&
           (!normalizedSearch || searchableValue.includes(normalizedSearch))
         );
       })
     );
-  }, [environmentFilter, projectFilter, records, searchTerm, statusFilter]);
+  }, [environmentFilter, projectFilter, records, searchTerm]);
 
   const displayedDeploymentId = editingId ? formData.id : generateDeploymentId(records);
+
+  function getFilteredProjectDeployment() {
+    return {
+      ...emptyDeployment,
+      project: projectFilter === "All" ? "" : projectFilter
+    };
+  }
 
   function updateField<Field extends keyof DeploymentRecord>(field: Field, value: DeploymentRecord[Field]) {
     setFormData((current) => ({ ...current, [field]: value }));
@@ -184,7 +199,7 @@ export default function DeploymentTrackerPage() {
   }
 
   function resetForm() {
-    setFormData(emptyDeployment);
+    setFormData(getFilteredProjectDeployment());
     setEditingId(null);
     setMessage("");
   }
@@ -195,7 +210,9 @@ export default function DeploymentTrackerPage() {
   }
 
   function closeForm() {
-    resetForm();
+    setFormData(emptyDeployment);
+    setEditingId(null);
+    setMessage("");
     setIsFormVisible(false);
   }
 
@@ -204,8 +221,8 @@ export default function DeploymentTrackerPage() {
 
     const nextDeployment: DeploymentRecord = {
       id: editingId ? formData.id : generateDeploymentId(records),
-      description: formData.description.trim(),
       project: formData.project.trim(),
+      description: formData.description?.trim() ?? "",
       environment: formData.environment,
       version: formData.version.trim(),
       scheduledAt: formData.scheduledAt,
@@ -215,11 +232,9 @@ export default function DeploymentTrackerPage() {
 
     if (
       !nextDeployment.project ||
-      !nextDeployment.version ||
-      !nextDeployment.scheduledAt ||
-      !nextDeployment.owner
+      !nextDeployment.version
     ) {
-      setMessage("Complete all deployment fields before saving.");
+      setMessage("Complete all required deployment fields before saving.");
       return;
     }
 
@@ -239,11 +254,10 @@ export default function DeploymentTrackerPage() {
     setSearchTerm("");
     setProjectFilter("All");
     setEnvironmentFilter("All");
-    setStatusFilter("All");
   }
 
   function editDeployment(deployment: DeploymentRecord) {
-    setFormData(deployment);
+    setFormData({ ...deployment, description: deployment.description ?? "" });
     setEditingId(deployment.id);
     setIsFormVisible(true);
     setMessage("");
@@ -263,10 +277,11 @@ export default function DeploymentTrackerPage() {
     exportRowsToExcel({
       filename: "deployment-tracker.xlsx",
       sheetName: "Deployments",
-      headers: ["Deployment ID", "Project", "Environment", "Version", "Scheduled", "Owner", "Status"],
+      headers: ["Deployment ID", "Project", "Description", "Environment", "Version", "Scheduled", "Owner", "Status"],
       rows: filteredDeployments.map((deployment) => [
         deployment.id,
         deployment.project,
+        deployment.description ?? "",
         deployment.environment,
         deployment.version,
         formatDeploymentSchedule(deployment.scheduledAt),
@@ -347,7 +362,7 @@ export default function DeploymentTrackerPage() {
               />
             </label>
             <label>
-              Scheduled Date and Time
+              Scheduled Date and Time <span className="optional-label">Optional</span>
               <input
                 type="datetime-local"
                 value={formData.scheduledAt}
@@ -381,7 +396,7 @@ export default function DeploymentTrackerPage() {
 
       <section className="toolbar deployment-toolbar" aria-label="Deployment filters">
         <input
-          placeholder="Search deployment, project, version, or owner"
+          placeholder="Search deployment, project, version, or status"
           value={searchTerm}
           onChange={(event) => setSearchTerm(event.target.value)}
         />
@@ -404,15 +419,6 @@ export default function DeploymentTrackerPage() {
           <option>All</option>
           {deploymentEnvironments.map((environment) => (
             <option key={environment}>{environment}</option>
-          ))}
-        </select>
-        <select
-          value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value as DeploymentStatus | "All")}
-        >
-          <option>All</option>
-          {deploymentStatuses.map((status) => (
-            <option key={status}>{status}</option>
           ))}
         </select>
         <button
@@ -454,7 +460,7 @@ export default function DeploymentTrackerPage() {
                 <tr key={deployment.id}>
                   <td><strong>{deployment.id}</strong></td>
                   <td><strong>{deployment.project}</strong></td>
-                  <td>{deployment.description  ?? 'No description provided'}</td>
+                  <td>{deployment.description ?? ""}</td>
                   <td>{deployment.environment}</td>
                   <td>{deployment.version}</td>
                   <td className="date-cell">{formatDeploymentSchedule(deployment.scheduledAt)}</td>
@@ -495,6 +501,7 @@ export default function DeploymentTrackerPage() {
           </table>
         </div>
       </section>
+
     </AppShell>
   );
 }
