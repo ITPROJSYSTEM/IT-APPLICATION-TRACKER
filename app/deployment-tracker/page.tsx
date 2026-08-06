@@ -95,6 +95,26 @@ function generateDeploymentId(records: DeploymentRecord[]) {
   return `DPL-${String(highestNumber + 1).padStart(3, "0")}`;
 }
 
+function getProjectDeploymentDefaults(records: DeploymentRecord[], projectName: string) {
+  const normalizedProjectName = projectName.trim().toLowerCase();
+
+  if (!normalizedProjectName) {
+    return {
+      version: "",
+      scheduledAt: ""
+    };
+  }
+
+  const latestProjectDeployment = sortRecordsById(
+    records.filter((deployment) => deployment.project.trim().toLowerCase() === normalizedProjectName)
+  ).at(-1);
+
+  return {
+    version: latestProjectDeployment?.version ?? "",
+    scheduledAt: latestProjectDeployment?.scheduledAt ?? ""
+  };
+}
+
 function formatDeploymentSchedule(value: string) {
   const date = new Date(value);
 
@@ -187,14 +207,29 @@ export default function DeploymentTrackerPage() {
   const displayedDeploymentId = editingId ? formData.id : generateDeploymentId(records);
 
   function getFilteredProjectDeployment() {
+    const project = projectFilter === "All" ? "" : projectFilter;
+    const projectDefaults = getProjectDeploymentDefaults(records, project);
+
     return {
       ...emptyDeployment,
-      project: projectFilter === "All" ? "" : projectFilter
+      project,
+      ...projectDefaults
     };
   }
 
   function updateField<Field extends keyof DeploymentRecord>(field: Field, value: DeploymentRecord[Field]) {
     setFormData((current) => ({ ...current, [field]: value }));
+    setMessage("");
+  }
+
+  function updateProjectField(project: string) {
+    const projectDefaults = getProjectDeploymentDefaults(records, project);
+
+    setFormData((current) => ({
+      ...current,
+      project,
+      ...projectDefaults
+    }));
     setMessage("");
   }
 
@@ -243,17 +278,20 @@ export default function DeploymentTrackerPage() {
         current.map((deployment) => (deployment.id === editingId ? nextDeployment : deployment))
       );
       setMessage(`${nextDeployment.id} updated.`);
+      setFormData(nextDeployment);
+      setEditingId(nextDeployment.id);
     } else {
       setRecords((current) => sortRecordsById([...current, nextDeployment]));
       setMessage(`${nextDeployment.id} added.`);
+      setFormData({
+        ...emptyDeployment,
+        project: nextDeployment.project,
+        environment: nextDeployment.environment,
+        version: nextDeployment.version,
+        scheduledAt: nextDeployment.scheduledAt
+      });
+      setEditingId(null);
     }
-
-    setFormData(emptyDeployment);
-    setEditingId(null);
-    setIsFormVisible(false);
-    setSearchTerm("");
-    setProjectFilter("All");
-    setEnvironmentFilter("All");
   }
 
   function editDeployment(deployment: DeploymentRecord) {
@@ -325,7 +363,7 @@ export default function DeploymentTrackerPage() {
               <input
                 list="deployment-project-options"
                 value={formData.project}
-                onChange={(event) => updateField("project", event.target.value)}
+                onChange={(event) => updateProjectField(event.target.value)}
                 placeholder="Project name"
               />
               <datalist id="deployment-project-options">
