@@ -1,6 +1,7 @@
 "use client";
 
 import { Dispatch, SetStateAction, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { loadRelationalRecords, mirrorRelationalRecords } from "@/lib/relational-records";
 import { supabase } from "@/lib/supabase";
 
 const sharedDataTable = "app_data";
@@ -201,7 +202,11 @@ async function saveSharedRecords<TRecord>(storageKey: string, records: TRecord[]
 
   if (error) {
     console.warn(`Unable to sync ${storageKey} to Supabase.`, error.message);
+    await mirrorRelationalRecords(storageKey, records);
+    return;
   }
+
+  await mirrorRelationalRecords(storageKey, records);
 }
 
 async function loadSharedRecords<TRecord>(
@@ -227,6 +232,16 @@ async function loadSharedRecords<TRecord>(
   }
 
   if (!data) {
+    const relationalRecords = await loadRelationalRecords(storageKey);
+    const parsedRelationalRecords = relationalRecords
+      ? parseRecords(relationalRecords, validator, [])
+      : [];
+
+    if (parsedRelationalRecords.length > 0) {
+      await saveSharedRecords(storageKey, parsedRelationalRecords);
+      return { records: parsedRelationalRecords, shouldSkipSave: true };
+    }
+
     if (localSnapshot.exists) {
       await saveSharedRecords(storageKey, localSnapshot.records, localSnapshot.updatedAt ?? undefined);
       return { records: localSnapshot.records, shouldSkipSave: true };
@@ -236,6 +251,14 @@ async function loadSharedRecords<TRecord>(
   }
 
   const sharedRecords = parseRecords(data.data, validator, localSnapshot.records);
+  const relationalRecords = sharedRecords.length === 0 ? await loadRelationalRecords(storageKey) : null;
+  const parsedRelationalRecords = relationalRecords ? parseRecords(relationalRecords, validator, []) : [];
+
+  if (parsedRelationalRecords.length > 0) {
+    await saveSharedRecords(storageKey, parsedRelationalRecords);
+    return { records: parsedRelationalRecords, shouldSkipSave: true };
+  }
+
   const remoteUpdatedAt = data.updated_at ?? null;
   const localHasDifferentRecords = localSnapshot.exists && !recordsMatch(localSnapshot.records, sharedRecords);
   const localIsEmpty = localSnapshot.records.length === 0;

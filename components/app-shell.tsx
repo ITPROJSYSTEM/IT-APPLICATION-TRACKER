@@ -15,6 +15,7 @@ import {
   LayoutDashboard,
   LogOut,
   Moon,
+  Rocket,
   Sun,
   Wrench
 } from "lucide-react";
@@ -24,12 +25,13 @@ const navItems = [
   { href: "/task-calendar-activities", label: "Task Calendar Activities", icon: CalendarDays },
   { href: "/project-modification", label: "Project Modification", icon: Wrench },
   { href: "/test-cases", label: "Test Case Management", icon: ClipboardCheck },
-  { href: "/projects", label: "Project Maintenance", icon: FolderKanban }
+  { href: "/projects", label: "Project Maintenance", icon: FolderKanban },
+  { href: "/deployment-tracker", label: "Deployment Tracker", icon: Rocket }
 ];
 const themeStorageKey = "it-application-tracker-theme";
 const themes = [
-  { id: "maroon-dark", label: "Maroon Dark", icon: Moon },
-  { id: "maroon-light", label: "Maroon Light", icon: Sun }
+  { id: "maroon-dark", label: "Warm Taupe", icon: Moon },
+  { id: "maroon-light", label: "Ivory Minimal", icon: Sun }
 ] as const;
 
 type ThemeId = (typeof themes)[number]["id"];

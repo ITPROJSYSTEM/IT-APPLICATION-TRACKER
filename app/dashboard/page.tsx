@@ -10,7 +10,6 @@ import { formatDateForDisplay } from "@/lib/format";
 import { sortRecordsById } from "@/lib/record-sort";
 import { useSyncedRecords } from "@/lib/shared-records";
 import type { ProjectStatus, TestCase, TestStatus } from "@/lib/types";
-import { demoUserProfile, readCurrentUserProfile } from "@/lib/user-profile";
 import {
   AlertTriangle,
   Briefcase,
@@ -319,7 +318,6 @@ function MetricCard({
 
 export default function DashboardPage() {
   const [currentTime, setCurrentTime] = useState(() => new Date());
-  const [currentUser, setCurrentUser] = useState(demoUserProfile);
   const [selectedProject, setSelectedProject] = useState("All Projects");
   const [celebrationKey, setCelebrationKey] = useState(0);
   const { records: projectRecords, isReady: areProjectsReady } = useSyncedRecords(projectStorageKey, projects, isProject);
@@ -332,10 +330,6 @@ export default function DashboardPage() {
   const { records: taskActivities } = useSyncedRecords(taskActivityStorageKey, initialTaskActivities, isTaskActivity);
   const [previewAttachment, setPreviewAttachment] = useState<DashboardAttachment | null>(null);
   const [selectedDetailRow, setSelectedDetailRow] = useState<string | null>(null);
-
-  useEffect(() => {
-    setCurrentUser(readCurrentUserProfile());
-  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => setCurrentTime(new Date()), 1000);
@@ -694,10 +688,6 @@ export default function DashboardPage() {
       ) : null}
       {projectTickerNames.length > 0 ? (
         <section className="dashboard-project-ticker" aria-label="All active project names">
-          <span className="project-ticker-label">
-            <ClipboardList size={24} />
-            Running Projects
-          </span>
           <div className="project-ticker-window">
             <div className="project-ticker-track">
               <div className="project-ticker-group">
@@ -728,15 +718,15 @@ export default function DashboardPage() {
           </div>
         </section>
       ) : null}
-      <section className="dashboard-hero">
-        <div className="dashboard-welcome">
-          <div>
-            <h1>
-              Welcome back, <span>{currentUser.fullName}</span>
-            </h1>
-            <p>Here is what is happening with your projects today.</p>
-          </div>
-        </div>
+      <section className="dashboard-hero dashboard-toolbar-row">
+        <label className="dashboard-project-filter">
+          Select Project
+          <select value={selectedProject} onChange={(event) => setSelectedProject(event.target.value)}>
+            {projectOptions.map((projectName) => (
+              <option key={projectName}>{projectName}</option>
+            ))}
+          </select>
+        </label>
         <div className="dashboard-clock" aria-label="Current date and time">
           <span>
             <CalendarDays size={16} />
@@ -747,14 +737,6 @@ export default function DashboardPage() {
             {getDashboardTime(currentTime)}
           </span>
         </div>
-        <label className="dashboard-project-filter">
-          Select Project
-          <select value={selectedProject} onChange={(event) => setSelectedProject(event.target.value)}>
-            {projectOptions.map((projectName) => (
-              <option key={projectName}>{projectName}</option>
-            ))}
-          </select>
-        </label>
       </section>
 
       <section className="dashboard-summary-grid" id="dashboard-summary" aria-label="Dashboard summaries">
